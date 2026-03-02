@@ -10,7 +10,3 @@ package-lock.json
 
 # OS files
 .DS_Store
-.vscode/launch.json
-.gitignore
-.vscode/tasks.json
-.vscode/

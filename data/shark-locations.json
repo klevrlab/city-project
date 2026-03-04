@@ -1,0 +1,41 @@
+{
+  "tourName": "Sharks Way AR Tour",
+  "description": "Discover AR sharks across San Jose during Super Bowl LX",
+  "sharks": [
+    {
+      "id": "shark-1",
+      "title": "Label A",
+      "description": "Checkpoint A",
+      "latitude": 37.336861,
+      "longitude": -121.894361,
+      "icon": "./assets/the-big-game.svg",
+      "sharkeyMessage": "You've reached Checkpoint A! Keep going to Label B!",
+      "eventInfo": {
+        "name": "The Big Game",
+        "date": "February 9, 2026",
+        "venue": "Checkpoint A"
+      }
+    },
+    {
+      "id": "shark-2",
+      "title": "Label B",
+      "description": "Checkpoint B",
+      "latitude": 37.334222,
+      "longitude": -121.900417,
+      "icon": "./assets/the-big-game.svg",
+      "sharkeyMessage": "Congratulations! You've reached Checkpoint B!",
+      "eventInfo": {
+        "name": "The Big Game",
+        "date": "February 9, 2026",
+        "venue": "Checkpoint B"
+      }
+    }
+  ],
+  "settings": {
+    "detectionRadius": 50,
+    "detectionRadiusUnit": "meters",
+    "sharkScale": 0.5,
+    "enableSound": true,
+    "enableVibration": true
+  }
+}

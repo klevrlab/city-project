@@ -17,8 +17,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Mobile debugging console -->
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>eruda.init();</script> -->
     <script>
         // Global variables for touch rotation and zoom
         let touchStartX = 0;
@@ -61,9 +61,142 @@
             z-index: 1000;
         }
 
+        /* Top bar */
+        #topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: 12px 14px;
+            background: linear-gradient(to bottom, rgba(0,22,26,0.7) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1001;
+        }
+        #topbar h1 { font-size: 14px; font-weight: 700; flex: 1; color: white; }
+        #topbar .back {
+            color: #00A9E0;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        #hamburger-btn {
+            background: rgba(0, 169, 224, 0.25);
+            border: 1px solid rgba(0, 169, 224, 0.4);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 0;
+            margin-left: auto;
+            position: relative;
+            z-index: 1002;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #hamburger-btn:active {
+            transform: scale(0.95);
+            background: rgba(0, 169, 224, 0.4);
+        }
+        #hamburger-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+        /* Navigation Menu */
+        #nav-menu {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 280px;
+            height: 100vh;
+            background: rgba(0, 22, 26, 0.95);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-left: 1px solid rgba(0, 169, 224, 0.3);
+            z-index: 1050;
+            transition: right 0.3s ease;
+            padding: 60px 20px 20px;
+            overflow-y: auto;
+        }
+        #nav-menu.open {
+            right: 0;
+        }
+        #nav-menu .close-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 169, 224, 0.25);
+            border: 1px solid rgba(0, 169, 224, 0.4);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 1;
+            -webkit-tap-highlight-color: transparent;
+            padding: 0;
+        }
+        #nav-menu h2 {
+            color: #00A9E0;
+            font-size: 18px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        #nav-menu .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            background: rgba(0, 169, 224, 0.1);
+            border: 1px solid rgba(0, 169, 224, 0.2);
+            border-radius: 12px;
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        #nav-menu .nav-link:hover,
+        #nav-menu .nav-link:active {
+            background: rgba(0, 169, 224, 0.25);
+            border-color: rgba(0, 169, 224, 0.4);
+            transform: translateX(-4px);
+        }
+        #nav-menu .nav-link svg {
+            width: 20px;
+            height: 20px;
+            stroke: #00A9E0;
+            stroke-width: 2;
+            fill: none;
+        }
+        #nav-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1040;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #nav-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
         #header {
             position: absolute;
-            top: 20px;
+            top: 60px;
             left: 20px;
             background: rgba(0, 109, 117, 0.15);
             backdrop-filter: blur(20px) saturate(180%);
@@ -95,6 +228,35 @@
             line-height: 1.4;
         }
 
+        /* Checkpoint tracker styles */
+        .stop-item.visited {
+            opacity: 1 !important;
+            color: #00A9E0 !important;
+        }
+        .stop-item.visited .check-icon circle {
+            fill: #00A9E0 !important;
+            stroke: #00A9E0 !important;
+        }
+        .stop-item.visited .check-icon path {
+            stroke: white !important;
+            fill: none !important;
+            stroke-width: 2 !important;
+        }
+        .stop-item.active {
+            opacity: 1 !important;
+            color: #00FF88 !important;
+            font-weight: bold !important;
+        }
+        @media (max-width: 480px) {
+            #progress-tracker {
+                bottom: 10px !important;
+                left: 10px !important;
+                max-width: 140px !important;
+                padding: 12px 14px !important;
+                font-size: 10px !important;
+            }
+        }
+
         #event-icon-header {
             width: 45px;
             height: 45px;
@@ -115,8 +277,12 @@
         }
 
         @media (max-width: 480px) {
+            #nav-menu {
+                width: 85%;
+                max-width: 320px;
+            }
             #header {
-                top: 20px;
+                top: 60px;
                 left: 10px;
                 width: 110px;
                 padding: 15px;
@@ -141,6 +307,9 @@
                 width: 120px;
                 height: 120px;
                 min-width: 120px;
+                position: fixed;
+                right: 10px;
+                bottom: 20px;
             }
 
             #map-container.expanded {
@@ -249,8 +418,12 @@
             overflow: hidden;
             box-shadow: 0 8px 32px rgba(0, 109, 117, 0.4),
                 inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
             transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             flex-shrink: 0;
+            z-index: 100;
         }
 
         #map-container.expanded {
@@ -475,7 +648,7 @@
 
         #route-info {
             position: absolute;
-            top: 20px;
+            top: 60px;
             right: 20px;
             background: rgba(0, 109, 117, 0.15);
             backdrop-filter: blur(20px) saturate(180%);
@@ -859,6 +1032,55 @@
 </head>
 
 <body>
+    <!-- Top bar -->
+    <div id="topbar">
+        <a href="./index.html" class="back">&larr;</a>
+        <h1>Location Tour</h1>
+        <button id="hamburger-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Navigation Menu -->
+    <div id="nav-overlay"></div>
+    <div id="nav-menu">
+        <button class="close-btn" id="close-menu">&times;</button>
+        <h2>Navigation</h2>
+        <a href="./sharks-way.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+            </svg>
+            Sharks Way
+        </a>
+        <a href="./location-tour.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/>
+            </svg>
+            Location Tour
+        </a>
+        <a href="./marker-demo.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            Marker
+        </a>
+        <a href="./selfie-ar.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Selfie AR
+        </a>
+    </div>
+
     <div id="ui-overlay">
         <!-- Directional Arrow Indicators -->
         <div class="direction-arrow left" id="arrow-left">
@@ -879,7 +1101,7 @@
         </div>
 
         <div id="header">
-            <img id="event-icon-header" src="./the-big-game.svg" alt="Event" onerror="this.style.display='none'">
+            <img id="event-icon-header" src="./assets/the-big-game.svg" alt="Event" onerror="this.style.display='none'">
             <h2>Sharks Way Tour</h2>
             <p id="gps-status">
                 <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -993,18 +1215,34 @@
         </div>
     </div>
 
-    <!-- DEV: GLB Model Switcher -->
-    <div id="dev-switcher" style="position:fixed;top:12px;right:12px;z-index:9999;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-family:monospace;font-size:13px;color:#0ff;border:1px solid rgba(0,255,255,0.3);">
-        <span style="font-size:11px;opacity:0.7;white-space:nowrap;">🛠 DEV MODEL</span>
-        <select id="glb-select" style="background:#111;color:#0ff;border:1px solid #0ff;border-radius:6px;padding:4px 8px;font-family:monospace;font-size:13px;cursor:pointer;outline:none;">
-            <option value="./plushie_shark.glb">plushie_shark</option>
-            <option value="./MARIA_SHARK.glb">MARIA_SHARK</option>
-            <option value="./MARIA_SHARK_ANIMATED.glb">MARIA_SHARK_ANIMATED</option>
-            <option value="./SHAUN_SHARK.glb">SHAUN_SHARK</option>
-            <option value="./SHAUN_SHARK_ANIMATED.glb">SHAUN_SHARK_ANIMATED</option>
-            <option value="./STELLA_CAI_SHARK_SJSU_TEST1.glb">STELLA_CAI_SHARK</option>
-        </select>
+    <!-- Progress tracker (checkpoint tracker) -->
+    <div id="progress-tracker" style="position: fixed; bottom: 20px; left: 20px; background: rgba(0, 109, 117, 0.15); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); padding: 16px 18px; border-radius: 16px; color: white; font-size: 11px; z-index: 100; border: 1px solid rgba(0, 169, 224, 0.3); box-shadow: 0 8px 32px rgba(0, 109, 117, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2); max-width: 160px;">
+        <div style="font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none;"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+            Checkpoints
+        </div>
+        <div class="stop-item" data-checkpoint="A" id="checkpoint-a" style="margin: 6px 0; opacity: 0.5; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;">
+            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: currentColor; stroke-width: 2.5; fill: none;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            Label A
+        </div>
+        <div class="stop-item" data-checkpoint="B" id="checkpoint-b" style="margin: 6px 0; opacity: 0.5; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;">
+            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: currentColor; stroke-width: 2.5; fill: none;"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            Label B
+        </div>
     </div>
+
+    <!-- DEV: GLB Model Switcher -->
+    <!-- <div id="dev-switcher" style="position:fixed;top:12px;right:12px;z-index:9999;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);border-radius:12px;padding:10px 14px;display:none;align-items:center;gap:10px;font-family:monospace;font-size:13px;color:#0ff;border:1px solid rgba(0,255,255,0.3);">
+        <span style="font-size:11px;opacity:0.7;white-space:nowrap;">🛠 DEV MODEL (DISABLED)</span>
+        <select id="glb-select" style="background:#111;color:#0ff;border:1px solid #0ff;border-radius:6px;padding:4px 8px;font-family:monospace;font-size:13px;cursor:pointer;outline:none;">
+            <option value="./assets/3D-models/plushie_shark.glb">plushie_shark</option>
+            <option value="./assets/3D-models/MARIA_SHARK.glb">MARIA_SHARK</option>
+            <option value="./assets/3D-models/MARIA_SHARK_ANIMATED.glb">MARIA_SHARK_ANIMATED</option>
+            <option value="./assets/3D-models/SHAUN_SHARK.glb">SHAUN_SHARK</option>
+            <option value="./assets/3D-models/SHAUN_SHARK_ANIMATED.glb">SHAUN_SHARK_ANIMATED</option>
+            <option value="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb">STELLA_CAI_SHARK</option>
+        </select>
+    </div> -->
     <script>
         document.getElementById('glb-select').addEventListener('change', function() {
             var newSrc = this.value;
@@ -1022,7 +1260,7 @@
         camera="near: 0.1; far: 10000;">
 
         <a-assets>
-            <a-asset-item id="shark-model" src="./plushie_shark.glb"></a-asset-item>
+            <a-asset-item id="shark-model" src="./assets/3D-models/plushie_shark.glb"></a-asset-item>
         </a-assets>
 
         <!-- Shark entities will be dynamically created from shark-locations.json -->
@@ -1142,7 +1380,7 @@
         });
 
         // Load shark locations from JSON
-        fetch('./shark-locations.json')
+        fetch('./data/shark-locations.json')
             .then(response => response.json())
             .then(data => {
                 sharkData = data;
@@ -2114,6 +2352,51 @@
             }
         `;
         document.head.appendChild(style);
+    </script>
+
+    <!-- GPS Tracking for Checkpoints -->
+    <script src="./JS/shared-gps-tracking.js"></script>
+
+    <!-- Navigation Menu Script -->
+    <script>
+        const navMenu = document.getElementById('nav-menu');
+        const navOverlay = document.getElementById('nav-overlay');
+        const hamburgerBtn = document.getElementById('hamburger-btn');
+        const closeMenuBtn = document.getElementById('close-menu');
+
+        function openMenu() {
+            navMenu.classList.add('open');
+            navOverlay.classList.add('visible');
+        }
+
+        function closeMenu() {
+            navMenu.classList.remove('open');
+            navOverlay.classList.remove('visible');
+        }
+
+        hamburgerBtn.addEventListener('click', openMenu);
+        hamburgerBtn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            openMenu();
+        });
+        
+        closeMenuBtn.addEventListener('click', closeMenu);
+        closeMenuBtn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            closeMenu();
+        });
+        
+        navOverlay.addEventListener('click', closeMenu);
+        navOverlay.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            closeMenu();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && navMenu.classList.contains('open')) {
+                closeMenu();
+            }
+        });
     </script>
 </body>
 

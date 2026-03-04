@@ -1,0 +1,210 @@
+/* Shared Styles for Sharks Way Project */
+/* This file contains common component styles used across multiple pages */
+
+/* Top bar */
+#topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 12px 14px;
+    background: linear-gradient(to bottom, rgba(0,22,26,0.7) 0%, transparent 100%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1001;
+}
+#topbar h1 { 
+    font-size: 14px; 
+    font-weight: 700; 
+    flex: 1; 
+    color: white; 
+}
+#topbar .back {
+    color: #00A9E0;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Hamburger button */
+#hamburger-btn {
+    background: rgba(0, 169, 224, 0.25);
+    border: 1px solid rgba(0, 169, 224, 0.4);
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+    margin-left: auto;
+    position: relative;
+    z-index: 1002;
+    -webkit-tap-highlight-color: transparent;
+}
+#hamburger-btn:active {
+    transform: scale(0.95);
+    background: rgba(0, 169, 224, 0.4);
+}
+#hamburger-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+}
+
+/* Navigation Menu */
+#nav-menu {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 280px;
+    height: 100vh;
+    background: rgba(0, 22, 26, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-left: 1px solid rgba(0, 169, 224, 0.3);
+    z-index: 1050;
+    transition: right 0.3s ease;
+    padding: 60px 20px 20px;
+    overflow-y: auto;
+}
+#nav-menu.open {
+    right: 0;
+}
+#nav-menu .close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(0, 169, 224, 0.25);
+    border: 1px solid rgba(0, 169, 224, 0.4);
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 24px;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+#nav-menu h2 {
+    color: #00A9E0;
+    font-size: 18px;
+    margin-bottom: 20px;
+    font-weight: 700;
+}
+#nav-menu .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    background: rgba(0, 169, 224, 0.1);
+    border: 1px solid rgba(0, 169, 224, 0.2);
+    border-radius: 12px;
+    color: white;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+#nav-menu .nav-link:hover,
+#nav-menu .nav-link:active {
+    background: rgba(0, 169, 224, 0.25);
+    border-color: rgba(0, 169, 224, 0.4);
+    transform: translateX(-4px);
+}
+#nav-menu .nav-link svg {
+    width: 20px;
+    height: 20px;
+    stroke: #00A9E0;
+    stroke-width: 2;
+    fill: none;
+}
+#nav-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+#nav-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Progress tracker (checkpoint tracker) */
+#progress-tracker {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 109, 117, 0.15);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    padding: 16px 18px;
+    border-radius: 16px;
+    color: white;
+    font-size: 11px;
+    z-index: 100;
+    border: 1px solid rgba(0, 169, 224, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 109, 117, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    max-width: 160px;
+}
+#progress-tracker .stop-item {
+    margin: 6px 0;
+    opacity: 0.5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+#progress-tracker .stop-item.visited {
+    opacity: 1;
+    color: #00A9E0;
+}
+#progress-tracker .stop-item.visited .check-icon circle {
+    fill: #00A9E0;
+    stroke: #00A9E0;
+}
+#progress-tracker .stop-item.visited .check-icon path {
+    stroke: white;
+    fill: none;
+    stroke-width: 2;
+}
+#progress-tracker .stop-item.active {
+    opacity: 1;
+    color: #00FF88;
+    font-weight: bold;
+}
+#progress-tracker .stop-item .check-icon {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    fill: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    #nav-menu {
+        width: 85%;
+        max-width: 320px;
+    }
+    #progress-tracker {
+        bottom: 10px;
+        left: 10px;
+        max-width: 140px;
+        padding: 12px 14px;
+        font-size: 10px;
+    }
+}

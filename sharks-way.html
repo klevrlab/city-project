@@ -6,7 +6,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Sharks Way AR - Shark Painting Demo</title>
+    <title>Sharks Way - Shark Painting Demo</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
@@ -182,11 +182,11 @@
             object-fit: contain;
         }
 
-        /* Progress tracker (top-right) — from marker-demo */
+        /* Progress tracker (checkpoint tracker) */
         #progress-tracker {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            bottom: 20px;
+            left: 20px;
             background: rgba(0, 109, 117, 0.15);
             backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -198,7 +198,7 @@
             border: 1px solid rgba(0, 169, 224, 0.3);
             box-shadow: 0 8px 32px rgba(0, 109, 117, 0.4),
                         inset 0 1px 0 rgba(255, 255, 255, 0.2);
-            max-width: 140px;
+            max-width: 160px;
         }
         #progress-tracker .stop-item {
             margin: 6px 0;
@@ -206,10 +206,25 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            transition: all 0.3s ease;
         }
         #progress-tracker .stop-item.visited {
             opacity: 1;
             color: #00A9E0;
+        }
+        #progress-tracker .stop-item.visited .check-icon circle {
+            fill: #00A9E0;
+            stroke: #00A9E0;
+        }
+        #progress-tracker .stop-item.visited .check-icon path {
+            stroke: white;
+            fill: none;
+            stroke-width: 2;
+        }
+        #progress-tracker .stop-item.active {
+            opacity: 1;
+            color: #00A9E0;
+            font-weight: bold;
         }
         #progress-tracker .stop-item .check-icon {
             width: 14px;
@@ -218,6 +233,14 @@
             stroke-width: 2.5;
             fill: none;
         }
+        #progress-tracker .gps-status {
+            font-size: 9px;
+            opacity: 0.6;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(0, 169, 224, 0.2);
+        }
+
 
         /* 3D Model overlay */
         #model-overlay {
@@ -328,12 +351,41 @@
             gap: 10px;
             z-index: 100;
         }
-        #topbar h1 { font-size: 14px; font-weight: 700; }
+        #topbar h1 { font-size: 14px; font-weight: 700; flex: 1; }
         #topbar .back {
             color: #00A9E0;
             text-decoration: none;
             font-size: 13px;
             font-weight: 600;
+        }
+        #hamburger-btn {
+            background: rgba(0, 169, 224, 0.25);
+            border: 1px solid rgba(0, 169, 224, 0.4);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 0;
+            margin-left: auto;
+            position: relative;
+            z-index: 101;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #hamburger-btn:active {
+            transform: scale(0.95);
+            background: rgba(0, 169, 224, 0.4);
+        }
+        #hamburger-btn svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
         }
         #topbar .top-btn {
             background: rgba(0, 169, 224, 0.25);
@@ -368,6 +420,92 @@
             50% { transform: translateX(-50%) scale(1.05); opacity: 0.9; }
         }
 
+        /* Navigation Menu */
+        #nav-menu {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 280px;
+            height: 100vh;
+            background: rgba(0, 22, 26, 0.95);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-left: 1px solid rgba(0, 169, 224, 0.3);
+            z-index: 150;
+            transition: right 0.3s ease;
+            padding: 60px 20px 20px;
+            overflow-y: auto;
+        }
+        #nav-menu.open {
+            right: 0;
+        }
+        #nav-menu .close-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 169, 224, 0.25);
+            border: 1px solid rgba(0, 169, 224, 0.4);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            line-height: 1;
+            -webkit-tap-highlight-color: transparent;
+            padding: 0;
+        }
+        #nav-menu h2 {
+            color: #00A9E0;
+            font-size: 18px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        #nav-menu .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            background: rgba(0, 169, 224, 0.1);
+            border: 1px solid rgba(0, 169, 224, 0.2);
+            border-radius: 12px;
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        #nav-menu .nav-link:hover,
+        #nav-menu .nav-link:active {
+            background: rgba(0, 169, 224, 0.25);
+            border-color: rgba(0, 169, 224, 0.4);
+            transform: translateX(-4px);
+        }
+        #nav-menu .nav-link svg {
+            width: 20px;
+            height: 20px;
+            stroke: #00A9E0;
+            stroke-width: 2;
+            fill: none;
+        }
+        #nav-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 140;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #nav-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
         @media (max-width: 480px) {
             #info-panel {
                 bottom: 10px;
@@ -385,11 +523,9 @@
             #event-info h3 { font-size: 15px; }
             #event-info .event-details { font-size: 12px; }
             #progress-tracker {
-                top: auto;
-                right: auto;
                 bottom: 10px;
                 left: 10px;
-                max-width: 120px;
+                max-width: 140px;
                 padding: 12px 14px;
                 font-size: 10px;
             }
@@ -404,6 +540,10 @@
             #topbar .top-btn {
                 padding: 5px 8px;
                 font-size: 10px;
+            }
+            #nav-menu {
+                width: 85%;
+                max-width: 320px;
             }
         }
 
@@ -439,7 +579,7 @@
     <!-- Loading overlay -->
     <div id="loading">
         <div class="spinner"></div>
-        <h2>Sharks Way AR</h2>
+        <h2>Sharks Way</h2>
         <p>Getting everything ready...</p>
         <div id="loading-status">Please wait</div>
     </div>
@@ -447,7 +587,50 @@
     <!-- Top bar -->
     <div id="topbar">
         <a href="./index.html" class="back">&larr;</a>
-        <h1>Sharks Way AR</h1>
+        <h1>Sharks Way</h1>
+        <button id="hamburger-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Navigation Menu -->
+    <div id="nav-overlay"></div>
+    <div id="nav-menu">
+        <button class="close-btn" id="close-menu">&times;</button>
+        <h2>Navigation</h2>
+        <a href="./sharks-way.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+            </svg>
+            Sharks Way
+        </a>
+        <a href="./location-tour.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/>
+            </svg>
+            Location Tour
+        </a>
+        <a href="./marker-demo.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            Marker
+        </a>
+        <a href="./selfie-ar.html" class="nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Selfie AR
+        </a>
     </div>
 
     <!-- 3D Plushie overlay -->
@@ -477,7 +660,7 @@
 
     <!-- Info panel (bottom-right) -->
     <div id="info-panel">
-        <img id="event-icon" src="./the-big-game.svg" alt="Event" onerror="this.style.display='none'">
+        <img id="event-icon" src="./assets/the-big-game.svg" alt="Event" onerror="this.style.display='none'">
         <h2>Sharks Way Tour</h2>
         <p>Point camera at a shark painting</p>
     </div>
@@ -502,22 +685,20 @@
     <!-- Progress tracker -->
     <div id="progress-tracker">
         <div style="font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-            <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-            Tour Progress
+            <!-- <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> -->
+            Checkpoints
         </div>
-        <div class="stop-item" data-stop="0">
-            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-            SAP Center
+        <div class="stop-item" data-checkpoint="A" id="checkpoint-a">
+            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            Label A
         </div>
-        <div class="stop-item" data-stop="1">
-            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-            Downtown SJ
+        <div class="stop-item" data-checkpoint="B" id="checkpoint-b">
+            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>
+            Label B
         </div>
-        <div class="stop-item" data-stop="2">
-            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-            San Pedro Sq
-        </div>
+        <!-- <div class="gps-status" id="gps-status">GPS: Waiting...</div> -->
     </div>
+
 
     <!-- Shark animation + video plane (fallback mode) -->
     <div id="shark-plane-overlay">
@@ -526,8 +707,8 @@
             shadow="type: pcfsoft">
             <a-assets>
                 <video id="videoTexture" src="./assets/video.mp4" autoplay loop muted playsinline crossorigin="anonymous" preload="auto"></video>
-                <a-asset-item id="sharkModel1" src="./STELLA_CAI_SHARK_SJSU_TEST1.glb"></a-asset-item>
-                <a-asset-item id="sharkModel2" src="./SHAUN_SHARK_ANIMATED.glb"></a-asset-item>
+                <a-asset-item id="sharkModel1" src="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb"></a-asset-item>
+                <a-asset-item id="sharkModel2" src="./assets/3D-models/SHAUN_SHARK_ANIMATED.glb"></a-asset-item>
             </a-assets>
             <a-entity id="mural-shark-root" mural-shark-content></a-entity>
             <a-entity camera="fov: 55; zoom: 1.0" position="0 1.35 3.1" look-controls="enabled: false"></a-entity>
@@ -1058,7 +1239,7 @@
 
         // ─── CONFIG ───
         const THRESHOLD = 0.55;
-        const EMBEDDINGS_URL = './shark-embeddings-browser.json';
+        const EMBEDDINGS_URL = './data/shark-embeddings-browser.json';
         const CACHE_KEY = 'shark-embeddings-v5';
 
         // ─── UI REFS ───
@@ -1111,8 +1292,285 @@
             sharkVisible: false,
             dismissedAt: 0,
             currentEventIndex: 0,
-            visitedStops: new Set()
+            visitedStops: new Set(),
+            gpsWatchId: null,
+            currentPosition: null,
+            checkpointA: { visited: false, active: false },
+            checkpointB: { visited: false, active: false }
         };
+
+        // ─── GPS CHECKPOINT SYSTEM ───
+        const CHECKPOINTS = {
+            A: {
+                lat: 37.336861,  // 37°20'12.7"N
+                lng: -121.894361, // 121°53'39.7"W
+                name: 'Label A'
+            },
+            B: {
+                lat: 37.334222,  // 37°20'03.2"N
+                lng: -121.900417, // 121°54'01.5"W
+                name: 'Label B'
+            }
+        };
+
+        const GPS_CONFIG = {
+            proximityThreshold: 50, // meters - consider "at" checkpoint
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 5000
+        };
+
+        // Convert DMS to Decimal (for reference)
+        function dmsToDecimal(degrees, minutes, seconds, direction) {
+            let decimal = degrees + minutes / 60 + seconds / 3600;
+            if (direction === 'S' || direction === 'W') {
+                decimal = -decimal;
+            }
+            return decimal;
+        }
+
+        // Calculate distance between two coordinates (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c; // Distance in meters
+        }
+
+        // Add log entry to console
+        function addGPSLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[GPS ${timestamp}] ${message}`;
+            
+            switch(type) {
+                case 'checkpoint':
+                    console.log('%c' + logMessage, 'color: #00FF88; font-weight: bold');
+                    break;
+                case 'error':
+                    console.error(logMessage);
+                    break;
+                default:
+                    console.log(logMessage);
+                    break;
+            }
+        }
+
+        // Update checkpoint status in UI
+        function updateCheckpointUI() {
+            const checkpointAEl = document.getElementById('checkpoint-a');
+            const checkpointBEl = document.getElementById('checkpoint-b');
+            
+            console.log('[GPS] Updating UI - A visited:', STATE.checkpointA.visited, 'active:', STATE.checkpointA.active, '| B visited:', STATE.checkpointB.visited, 'active:', STATE.checkpointB.active);
+            
+            // Update Checkpoint A
+            checkpointAEl.classList.remove('visited', 'active');
+            const svgA = checkpointAEl.querySelector('.check-icon');
+            if (svgA) {
+                const circleA = svgA.querySelector('circle');
+                const pathA = svgA.querySelector('path');
+                
+                if (STATE.checkpointA.visited) {
+                    checkpointAEl.classList.add('visited');
+                    console.log('[GPS] Checkpoint A marked with checkmark');
+                }
+            }
+            if (STATE.checkpointA.active) {
+                checkpointAEl.classList.add('active');
+            }
+            
+            // Update Checkpoint B
+            checkpointBEl.classList.remove('visited', 'active');
+            const svgB = checkpointBEl.querySelector('.check-icon');
+            if (svgB) {
+                const circleB = svgB.querySelector('circle');
+                const pathB = svgB.querySelector('path');
+                
+                if (STATE.checkpointB.visited) {
+                    checkpointBEl.classList.add('visited');
+                    console.log('[GPS] Checkpoint B marked with checkmark');
+                }
+            }
+            if (STATE.checkpointB.active) {
+                checkpointBEl.classList.add('active');
+            }
+        }
+
+        // Determine checkpoint status based on position
+        function evaluateCheckpoints(position) {
+            const { latitude, longitude, accuracy } = position.coords;
+            
+            addGPSLog(`Position: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${accuracy.toFixed(1)}m)`);
+            
+            // Calculate distances to both checkpoints
+            const distToA = calculateDistance(latitude, longitude, CHECKPOINTS.A.lat, CHECKPOINTS.A.lng);
+            const distToB = calculateDistance(latitude, longitude, CHECKPOINTS.B.lat, CHECKPOINTS.B.lng);
+            
+            addGPSLog(`Distance to A: ${distToA.toFixed(1)}m, to B: ${distToB.toFixed(1)}m`);
+            
+            // Determine if we're at either checkpoint
+            const atA = distToA <= GPS_CONFIG.proximityThreshold;
+            const atB = distToB <= GPS_CONFIG.proximityThreshold;
+            
+            // Calculate which checkpoint is closer to determine order
+            const closerToA = distToA < distToB;
+            
+            // Determine position relative to checkpoints
+            let status = '';
+            
+            if (atA && atB) {
+                // At both (unlikely unless they're very close)
+                status = 'At both checkpoints';
+                STATE.checkpointA.visited = true;
+                STATE.checkpointA.active = true;
+                STATE.checkpointB.visited = true;
+                STATE.checkpointB.active = true;
+                addGPSLog('✓ At both checkpoints!', 'checkpoint');
+            } else if (atA) {
+                // At checkpoint A
+                status = 'At Checkpoint A';
+                STATE.checkpointA.visited = true;
+                STATE.checkpointA.active = true;
+                STATE.checkpointB.active = false;
+                addGPSLog('✓ At Checkpoint A', 'checkpoint');
+            } else if (atB) {
+                // At checkpoint B
+                status = 'At Checkpoint B';
+                STATE.checkpointB.visited = true;
+                STATE.checkpointB.active = true;
+                
+                // If we're at B, we must have passed A (mark it visited)
+                if (!STATE.checkpointA.visited) {
+                    STATE.checkpointA.visited = true;
+                    addGPSLog('✓ Checkpoint A marked as passed', 'checkpoint');
+                }
+                STATE.checkpointA.active = false;
+                addGPSLog('✓ At Checkpoint B', 'checkpoint');
+            } else {
+                // Not at either checkpoint - determine if between them
+                const totalDist = calculateDistance(CHECKPOINTS.A.lat, CHECKPOINTS.A.lng, CHECKPOINTS.B.lat, CHECKPOINTS.B.lng);
+                const sumDist = distToA + distToB;
+                const tolerance = totalDist * 0.3; // 30% tolerance for "between"
+                
+                const isBetween = Math.abs(sumDist - totalDist) <= tolerance;
+                
+                if (isBetween) {
+                    // Between checkpoints
+                    status = 'Between A and B';
+                    
+                    // If between and closer to A, A is active (approaching A)
+                    // If between and closer to B, A is done and B is active (crossed A, approaching B)
+                    if (closerToA) {
+                        STATE.checkpointA.active = true;
+                        STATE.checkpointA.visited = false; // Haven't crossed it yet
+                        STATE.checkpointB.active = false;
+                        STATE.checkpointB.visited = false;
+                        addGPSLog('→ Between checkpoints (closer to A, A is active)');
+                    } else {
+                        // Closer to B means we've crossed A
+                        STATE.checkpointA.visited = true; // Mark A as done
+                        STATE.checkpointA.active = false;
+                        STATE.checkpointB.active = true;
+                        STATE.checkpointB.visited = false; // Not yet at B
+                        addGPSLog('→ Between checkpoints (closer to B, A marked done, B is active)');
+                    }
+                } else {
+                    // Away from both
+                    if (closerToA) {
+                        status = 'Before Checkpoint A';
+                        STATE.checkpointA.active = false;
+                        STATE.checkpointB.active = false;
+                        addGPSLog('← Away from checkpoints (before A)');
+                    } else {
+                        status = 'After Checkpoint B';
+                        STATE.checkpointA.visited = true;
+                        STATE.checkpointB.visited = true;
+                        STATE.checkpointA.active = false;
+                        STATE.checkpointB.active = false;
+                        addGPSLog('→ Away from checkpoints (after B, both marked visited)', 'checkpoint');
+                    }
+                }
+            }
+            
+            // Update GPS status display
+            const gpsStatus = document.getElementById('gps-status');
+            if (gpsStatus) {
+                gpsStatus.textContent = `GPS: ${status}`;
+            }
+            
+            // Update UI
+            updateCheckpointUI();
+        }
+
+        // Handle GPS errors
+        function handleGPSError(error) {
+            let errorMsg = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = 'GPS permission denied';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = 'GPS position unavailable';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = 'GPS request timeout';
+                    break;
+                default:
+                    errorMsg = 'GPS unknown error';
+                    break;
+            }
+            
+            addGPSLog(errorMsg, 'error');
+            
+            const gpsStatus = document.getElementById('gps-status');
+            if (gpsStatus) {
+                gpsStatus.textContent = `GPS: ${errorMsg}`;
+            }
+        }
+
+        // Start GPS tracking
+        function startGPSTracking() {
+            if (!navigator.geolocation) {
+                addGPSLog('Geolocation not supported', 'error');
+                return;
+            }
+            
+            // Initialize UI with empty circles
+            updateCheckpointUI();
+            
+            addGPSLog('Starting GPS tracking...');
+            addGPSLog(`Checkpoint A: ${CHECKPOINTS.A.lat.toFixed(6)}, ${CHECKPOINTS.A.lng.toFixed(6)}`);
+            addGPSLog(`Checkpoint B: ${CHECKPOINTS.B.lat.toFixed(6)}, ${CHECKPOINTS.B.lng.toFixed(6)}`);
+            
+            STATE.gpsWatchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    STATE.currentPosition = position;
+                    evaluateCheckpoints(position);
+                },
+                handleGPSError,
+                {
+                    enableHighAccuracy: GPS_CONFIG.enableHighAccuracy,
+                    timeout: GPS_CONFIG.timeout,
+                    maximumAge: GPS_CONFIG.maximumAge
+                }
+            );
+        }
+
+        // Stop GPS tracking
+        function stopGPSTracking() {
+            if (STATE.gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(STATE.gpsWatchId);
+                STATE.gpsWatchId = null;
+                addGPSLog('GPS tracking stopped');
+            }
+        }
 
         // ─── EVENT DATA (from marker-demo) ───
         const dummyEvents = [
@@ -1122,7 +1580,7 @@
                 time: "3:30 PM PST",
                 location: "SAP Center, San Jose",
                 sharkeyMessage: "Hey there! I'm Sharkey, and this is where the magic happens! SAP Center hosts over 200 events per year. Arrive early to grab some teal gear!",
-                icon: "./the-big-game.svg"
+                icon: "./assets/the-big-game.svg"
             },
             {
                 title: "March Madness Watch Party",
@@ -1176,25 +1634,13 @@
             ui.eventInfo.classList.add('visible');
 
             STATE.visitedStops.add(STATE.currentEventIndex);
-            updateProgress();
         }
 
         function hideEvent() {
             ui.eventInfo.classList.remove('visible');
         }
 
-        function updateProgress() {
-            STATE.visitedStops.forEach(index => {
-                const stopItem = document.querySelector(`.stop-item[data-stop="${index}"]`);
-                if (stopItem) {
-                    stopItem.classList.add('visited');
-                    const checkIcon = stopItem.querySelector('.check-icon');
-                    if (checkIcon) {
-                        checkIcon.innerHTML = '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>';
-                    }
-                }
-            });
-        }
+        // updateProgress removed - now using updateCheckpointUI() for GPS-based checkpoints
 
         document.getElementById('learn-more').addEventListener('click', () => {
             playSound('tap');
@@ -1206,6 +1652,49 @@
         document.getElementById('dismiss-event').addEventListener('click', () => {
             playSound('tap');
             dismissAll();
+        });
+
+        // ─── NAVIGATION MENU ───
+        const navMenu = document.getElementById('nav-menu');
+        const navOverlay = document.getElementById('nav-overlay');
+        const hamburgerBtn = document.getElementById('hamburger-btn');
+        const closeMenuBtn = document.getElementById('close-menu');
+
+        function openMenu() {
+            navMenu.classList.add('open');
+            navOverlay.classList.add('visible');
+            playSound('tap');
+        }
+
+        function closeMenu() {
+            navMenu.classList.remove('open');
+            navOverlay.classList.remove('visible');
+            playSound('tap');
+        }
+
+        hamburgerBtn.addEventListener('click', openMenu);
+        hamburgerBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            openMenu();
+        });
+        
+        closeMenuBtn.addEventListener('click', closeMenu);
+        closeMenuBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            closeMenu();
+        });
+        
+        navOverlay.addEventListener('click', closeMenu);
+        navOverlay.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            closeMenu();
+        });
+
+        // Close menu on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && navMenu.classList.contains('open')) {
+                closeMenu();
+            }
         });
 
         function showFallbackSharks() {
@@ -1389,7 +1878,7 @@
             // Always use the A-Frame fallback sharks overlay.
             showFallbackSharks();
             // Show label
-            ui.labelName.textContent = 'Sharks Activated';
+            ui.labelName.textContent = 'Follow Sharkey';
             ui.sharkLabel.classList.add('visible');
 
             // Show event info + sound
@@ -1450,11 +1939,19 @@
 
                 STATE.running = true;
                 loop();
+                
+                // Start GPS tracking
+                startGPSTracking();
             } catch (e) {
                 ui.loadingStatus.textContent = 'Something went wrong. Please refresh.';
                 console.error(e);
             }
         }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopGPSTracking();
+        });
 
         init();
     </script>

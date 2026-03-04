@@ -528,12 +528,13 @@
                 <video id="videoTexture" src="./assets/video.mp4" autoplay loop muted playsinline crossorigin="anonymous" preload="auto"></video>
                 <a-asset-item id="sharkModel1" src="./STELLA_CAI_SHARK_SJSU_TEST1.glb"></a-asset-item>
                 <a-asset-item id="sharkModel2" src="./SHAUN_SHARK_ANIMATED.glb"></a-asset-item>
+                <a-asset-item id="planeWaterLow" src="./assets/plane_water_low.glb"></a-asset-item>
             </a-assets>
             <a-entity id="mural-shark-root" mural-shark-content></a-entity>
             <a-entity camera="fov: 55; zoom: 1.0" position="0 1.35 3.1" look-controls="enabled: false"></a-entity>
-            <a-entity light="type: ambient; intensity: 0.9; color: #ffffff"></a-entity>
-            <a-entity light="type: directional; intensity: 1.1; color: #ffffff; castShadow: true; shadowMapWidth: 1024; shadowMapHeight: 1024; shadowCameraLeft: -12; shadowCameraRight: 12; shadowCameraTop: 12; shadowCameraBottom: -12; shadowCameraNear: 0.5; shadowCameraFar: 30; shadowBias: -0.0001" position="2 4 2"></a-entity>
-            <a-plane id="shadow-ground" position="0 -2 0" rotation="-90 0 0" width="24" height="24" material="color: #1a1a1a; transparent: true; opacity: 0.5; depthWrite: false" shadow="cast: false; receive: true"></a-plane>
+            <a-entity light="type: ambient; intensity: 0.48; color: #ffffff"></a-entity>
+            <a-entity id="shadow-caster-light" light="type: directional; intensity: 1.35; color: #ffffff; castShadow: true; shadowMapWidth: 2048; shadowMapHeight: 2048; shadowCameraLeft: -12; shadowCameraRight: 12; shadowCameraTop: 12; shadowCameraBottom: -12; shadowCameraNear: 0.5; shadowCameraFar: 30; shadowBias: -0.0001" position="2 4 2"></a-entity>
+            <a-entity id="shadow-ground" position="0 -2 0" rotation="-90 0 0" scale="1 1 1" gltf-model="#planeWaterLow" animation-mixer="loop: repeat; timeScale: 1" shadow="cast: false; receive: true"></a-entity>
         </a-scene>
     </div>
 
@@ -627,6 +628,79 @@
         }
 
         if (typeof AFRAME !== 'undefined') {
+            AFRAME.registerComponent('water-effect', {
+                schema: {
+                    opacity: { type: 'number', default: 0.4 },
+                    color: { type: 'color', default: '#0a6b7a' },
+                    waveSpeed: { type: 'number', default: 0.6 },
+                    waveHeight: { type: 'number', default: 0.08 },
+                    waveScale: { type: 'number', default: 2.5 }
+                },
+                init: function () {
+                    var self = this;
+                    var el = this.el;
+                    el.addEventListener('object3dset', function () { self.applyWater(); });
+                    if (el.getObject3D('mesh')) self.applyWater();
+                },
+                applyWater: function () {
+                    var mesh = this.el.getObject3D('mesh');
+                    if (!mesh || !mesh.geometry) return;
+                    var d = this.data;
+                    var waterMaterial = new THREE.ShaderMaterial({
+                        transparent: true,
+                        depthWrite: false,
+                        side: THREE.DoubleSide,
+                        uniforms: {
+                            time: { value: 0 },
+                            opacity: { value: d.opacity },
+                            waterColor: { value: new THREE.Color(d.color) },
+                            waveSpeed: { value: d.waveSpeed },
+                            waveHeight: { value: d.waveHeight },
+                            waveScale: { value: d.waveScale }
+                        },
+                        vertexShader: [
+                            'uniform float time;',
+                            'uniform float waveHeight;',
+                            'uniform float waveScale;',
+                            'uniform float waveSpeed;',
+                            'varying vec2 vUv;',
+                            'varying float vWave;',
+                            'void main() {',
+                            '  vUv = uv;',
+                            '  float t = time * waveSpeed;',
+                            '  float wave = sin(position.x * waveScale + t) * cos(position.y * waveScale + t * 0.7) * waveHeight;',
+                            '  vWave = wave;',
+                            '  vec3 pos = position + vec3(0, 0, wave);',
+                            '  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);',
+                            '}'
+                        ].join('\n'),
+                        fragmentShader: [
+                            'uniform float opacity;',
+                            'uniform vec3 waterColor;',
+                            'uniform float waveHeight;',
+                            'varying vec2 vUv;',
+                            'varying float vWave;',
+                            'void main() {',
+                            '  float h = max(waveHeight, 0.01);',
+                            '  float fresnel = 0.05 + 0.95 * pow(1.0 - min(abs(vWave) / h, 1.0), 1.5);',
+                            '  vec3 col = waterColor;',
+                            '  col += vec3(0.12, 0.18, 0.22) * fresnel;',
+                            '  float alpha = opacity * (0.8 + 0.2 * fresnel);',
+                            '  gl_FragColor = vec4(col, alpha);',
+                            '}'
+                        ].join('\n')
+                    });
+                    mesh.material = waterMaterial;
+                    mesh.material.needsUpdate = true;
+                    this.waterMaterial = waterMaterial;
+                },
+                tick: function (t) {
+                    if (this.waterMaterial && this.waterMaterial.uniforms) {
+                        this.waterMaterial.uniforms.time.value = t / 1000;
+                    }
+                }
+            });
+
             AFRAME.registerComponent('video-fact-cycle', {
                 schema: {
                     intervalMs: { type: 'number', default: 8000 },

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Sharks Way - Selfie AR</title>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: white;
+            overflow: hidden;
+            position: fixed;
+            inset: 0;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #video {
+            position: fixed; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover; z-index: 0;
+            transform: scaleX(-1);
+        }
+        #shark-overlay {
+            position: fixed; z-index: 10;
+            pointer-events: none;
+            display: none;
+        }
+        #shark-viewer {
+            background: transparent;
+            --poster-color: transparent;
+        }
+        #pose-status {
+            font-size: 10px; padding: 3px 6px; border-radius: 4px;
+            background: rgba(255,80,80,0.2); border: 1px solid rgba(255,80,80,0.4);
+            color: #f88; text-align: center;
+        }
+        #pose-status.detected {
+            background: rgba(0,255,100,0.15); border-color: rgba(0,255,100,0.4); color: #0f9;
+        }
+
+        /* Top bar */
+        #topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: 12px 16px;
+            background: linear-gradient(to bottom, rgba(0,22,26,0.75) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 9000;
+        }
+        #topbar a {
+            color: #00A9E0;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        #topbar h1 {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        /* DEV panel */
+        #dev-panel {
+            position: fixed;
+            top: 60px;
+            right: 12px;
+            z-index: 9999;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #0ff;
+            border: 1px solid rgba(0,255,255,0.3);
+        }
+        #dev-panel select {
+            background: #111;
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-family: monospace;
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+        }
+        #dev-panel label {
+            font-size: 10px;
+            opacity: 0.6;
+        }
+        #dev-panel input[type=range] {
+            width: 100%;
+            accent-color: #0ff;
+        }
+
+        /* Bottom controls */
+        #selfie-controls {
+            position: fixed;
+            bottom: 36px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9000;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        #selfie-snap {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: white;
+            border: 5px solid rgba(0,169,224,0.9);
+            box-shadow: 0 0 0 3px rgba(0,169,224,0.3), 0 8px 24px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: transform 0.12s ease;
+            flex-shrink: 0;
+        }
+        #selfie-snap:active { transform: scale(0.88); }
+        #selfie-hint {
+            position: fixed;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0,169,224,0.3);
+            border-radius: 20px;
+            padding: 8px 18px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.8);
+            z-index: 9000;
+            white-space: nowrap;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Flash */
+        #selfie-flash {
+            position: fixed;
+            inset: 0;
+            background: white;
+            z-index: 99999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.05s ease;
+        }
+
+        /* Preview overlay */
+        #selfie-preview {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99998;
+            background: rgba(0,0,0,0.88);
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+        #selfie-preview.active { display: flex; }
+        #selfie-preview img {
+            max-width: 92vw;
+            max-height: 68vh;
+            border-radius: 18px;
+            border: 2px solid rgba(0,169,224,0.5);
+            box-shadow: 0 8px 48px rgba(0,0,0,0.7);
+        }
+        #selfie-preview-label {
+            font-size: 13px;
+            color: rgba(255,255,255,0.6);
+            letter-spacing: 0.3px;
+        }
+        #selfie-preview-actions {
+            display: flex;
+            gap: 14px;
+        }
+        #selfie-preview-actions button {
+            padding: 13px 28px;
+            border-radius: 28px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.1s ease;
+        }
+        #selfie-preview-actions button:active { transform: scale(0.95); }
+        #btn-save { background: linear-gradient(135deg, #006D75, #00A9E0); color: white; }
+        #btn-retake { background: rgba(255,255,255,0.12); color: white; border: 1px solid rgba(255,255,255,0.25) !important; }
+        #btn-share { background: rgba(0,169,224,0.25); color: #00A9E0; border: 1px solid rgba(0,169,224,0.4) !important; }
+
+        /* Loading */
+        #selfie-loading {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,15,20,0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 8000;
+            gap: 16px;
+            transition: opacity 0.4s ease;
+        }
+        #selfie-loading.hidden { opacity: 0; pointer-events: none; }
+        .spinner {
+            width: 44px; height: 44px;
+            border: 3px solid rgba(0,169,224,0.2);
+            border-top-color: #00A9E0;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #selfie-loading p { font-size: 13px; color: rgba(255,255,255,0.6); }
+        #selfie-loading h2 { font-size: 16px; color: #00A9E0; }
+    </style>
+</head>
+<body>
+
+    <!-- Camera feed -->
+    <video id="video" autoplay playsinline muted></video>
+
+    <!-- Shark overlay positioned at shoulder by JS -->
+    <div id="shark-overlay">
+        <model-viewer id="shark-viewer"
+            src="./Pose_sharky_01.glb"
+            camera-orbit="0deg 75deg 150%"
+            field-of-view="60deg"
+            min-field-of-view="40deg"
+            max-field-of-view="90deg"
+            disable-zoom interaction-prompt="none"
+            environment-image="neutral" shadow-intensity="0"
+            style="width:300px;height:300px;background:transparent;--poster-color:transparent;">
+        </model-viewer>
+    </div>
+
+    <!-- Loading -->
+    <div id="selfie-loading">
+        <div class="spinner"></div>
+        <h2>🦈 Selfie AR</h2>
+        <p id="loading-msg">Starting body tracking...</p>
+    </div>
+
+    <!-- Top bar -->
+    <div id="topbar">
+        <a href="./shark-ar-demo.html">&larr;</a>
+        <h1>Selfie AR — Sharks Way</h1>
+    </div>
+
+    <!-- DEV panel -->
+    <div id="dev-panel">
+        <span style="font-size:10px;opacity:0.6;">🛠 DEV MODEL</span>
+        <select id="glb-select">
+            <option value="./plushie_shark.glb">plushie_shark</option>
+            <option value="./MARIA_SHARK.glb">MARIA_SHARK</option>
+            <option value="./MARIA_SHARK_ANIMATED.glb">MARIA_SHARK_ANIMATED</option>
+            <option value="./SHAUN_SHARK.glb">SHAUN_SHARK</option>
+            <option value="./SHAUN_SHARK_ANIMATED.glb">SHAUN_SHARK_ANIMATED</option>
+            <option value="./STELLA_CAI_SHARK_SJSU_TEST1.glb">STELLA_CAI_SHARK</option>
+            <option value="./mock_up_eoe_map.glb">mock_up_eoe_map</option>
+            <option value="./Pose_sharky_01.glb" selected>Pose_sharky_01</option>
+            <option value="./Pose_sharky_01._no_glass.glb">Pose_sharky_01_no_glass</option>
+            <option value="./Pose_sharky_02.glb">Pose_sharky_02</option>
+        </select>
+        <div id="pose-status">No pose detected</div>
+        <label>Anchor:</label>
+        <select id="anchor-select">
+            <option value="left">Left shoulder</option>
+            <option value="right">Right shoulder</option>
+            <option value="mid" selected>Between shoulders</option>
+        </select>
+        <label>Size: <span id="size-val">300</span>px</label>
+        <input type="range" id="size-slider" min="80" max="700" step="10" value="300">
+        <label>Y nudge: <span id="y-nudge-val">0</span>px</label>
+        <input type="range" id="y-nudge" min="-300" max="300" step="5" value="0">
+    </div>
+
+    <div id="selfie-hint">🦈 Step back so your shoulders are visible</div>
+
+    <div id="selfie-controls">
+        <button id="selfie-snap"></button>
+    </div>
+
+    <div id="selfie-flash"></div>
+
+    <div id="selfie-preview">
+        <div id="selfie-preview-label">Your Sharks Way Selfie 🦈</div>
+        <img id="selfie-preview-img" src="" alt="Selfie">
+        <div id="selfie-preview-actions">
+            <button id="btn-retake">↩ Retake</button>
+            <button id="btn-save">💾 Save</button>
+            <button id="btn-share">↗ Share</button>
+        </div>
+    </div>
+
+    <script>
+        var video = document.getElementById('video');
+        var overlay = document.getElementById('shark-overlay');
+        var viewer = document.getElementById('shark-viewer');
+        var poseStatus = document.getElementById('pose-status');
+        var DEV = { anchor: 'mid', size: 300, yNudge: 0 };
+        var lastPos = null;
+
+        // ─── CAMERA ───
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+        }).then(function(stream) {
+            video.srcObject = stream;
+            video.play();
+            initPose();
+        }).catch(function(e) {
+            document.getElementById('loading-msg').textContent = 'Camera error: ' + e.message;
+        });
+
+        // ─── MEDIAPIPE POSE ───
+        function initPose() {
+            document.getElementById('loading-msg').textContent = 'Loading pose model...';
+            var pose = new Pose({
+                locateFile: function(f) {
+                    return 'https://cdn.jsdelivr.net/npm/@mediapipe/pose/' + f;
+                }
+            });
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            pose.onResults(onResults);
+
+            var camera = new Camera(video, {
+                onFrame: async function() {
+                    await pose.send({ image: video });
+                },
+                width: 1280, height: 720
+            });
+            camera.start().then(function() {
+                document.getElementById('selfie-loading').classList.add('hidden');
+                setTimeout(function() {
+                    document.getElementById('selfie-hint').style.opacity = '0';
+                }, 5000);
+            });
+        }
+
+        // ─── POSE RESULTS ───
+        // MediaPipe Pose landmarks: 11 = left shoulder, 12 = right shoulder
+        // Coords are normalized 0-1. Video is mirrored so we flip X.
+        function onResults(results) {
+            if (!results.poseLandmarks) {
+                poseStatus.textContent = 'No pose detected';
+                poseStatus.classList.remove('detected');
+                overlay.style.display = 'none';
+                return;
+            }
+            var lm = results.poseLandmarks;
+            var leftShoulder  = lm[11]; // x,y normalized
+            var rightShoulder = lm[12];
+
+            if (!leftShoulder || !rightShoulder) return;
+
+            var W = window.innerWidth;
+            var H = window.innerHeight;
+            var half = DEV.size / 2;
+
+            // Video is mirrored via CSS scaleX(-1), so flip X
+            var lx = (1 - leftShoulder.x)  * W;
+            var ly = leftShoulder.y  * H;
+            var rx = (1 - rightShoulder.x) * W;
+            var ry = rightShoulder.y * H;
+
+            var px, py;
+            if (DEV.anchor === 'left')       { px = lx; py = ly; }
+            else if (DEV.anchor === 'right') { px = rx; py = ry; }
+            else                             { px = (lx + rx) / 2; py = (ly + ry) / 2; }
+
+            py += DEV.yNudge;
+
+            // Clamp so the full shark always stays within viewport
+            var clampedX = Math.min(Math.max(px - half, 0), W - DEV.size);
+            var clampedY = Math.min(Math.max(py - half, 0), H - DEV.size);
+
+            overlay.style.left    = clampedX + 'px';
+            overlay.style.top     = clampedY + 'px';
+            overlay.style.display = 'block';
+            viewer.style.width    = DEV.size + 'px';
+            viewer.style.height   = DEV.size + 'px';
+
+            poseStatus.textContent = '✓ Shoulders detected';
+            poseStatus.classList.add('detected');
+            lastPos = { px: clampedX + half, py: clampedY + half };
+        }
+
+        // ─── DEV CONTROLS ───
+        document.getElementById('glb-select').addEventListener('change', function() {
+            viewer.setAttribute('src', this.value);
+        });
+        document.getElementById('anchor-select').addEventListener('change', function() {
+            DEV.anchor = this.value;
+        });
+        document.getElementById('size-slider').addEventListener('input', function() {
+            DEV.size = parseInt(this.value);
+            document.getElementById('size-val').textContent = DEV.size;
+            viewer.style.width  = DEV.size + 'px';
+            viewer.style.height = DEV.size + 'px';
+        });
+        document.getElementById('y-nudge').addEventListener('input', function() {
+            DEV.yNudge = parseInt(this.value);
+            document.getElementById('y-nudge-val').textContent = DEV.yNudge;
+        });
+
+        // ─── SNAP ───
+        document.getElementById('selfie-snap').addEventListener('click', function() {
+            var flash = document.getElementById('selfie-flash');
+            flash.style.opacity = '1';
+            setTimeout(function() {
+                flash.style.transition = 'opacity 0.35s ease';
+                flash.style.opacity = '0';
+                setTimeout(function() { flash.style.transition = ''; }, 400);
+            }, 60);
+
+            // Composite: draw video frame + model-viewer canvas onto output canvas
+            var out = document.createElement('canvas');
+            out.width  = window.innerWidth;
+            out.height = window.innerHeight;
+            var ctx = out.getContext('2d');
+
+            // Draw mirrored video
+            ctx.save();
+            ctx.translate(out.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, out.width, out.height);
+            ctx.restore();
+
+            // Draw model-viewer on top at shoulder position
+            if (lastPos) {
+                var mvCanvas = viewer.shadowRoot ? viewer.shadowRoot.querySelector('canvas') : null;
+                if (mvCanvas) {
+                    var x = lastPos.px - DEV.size / 2;
+                    var y = lastPos.py + DEV.yNudge - DEV.size / 2;
+                    ctx.drawImage(mvCanvas, x, y, DEV.size, DEV.size);
+                }
+            }
+
+            document.getElementById('selfie-preview-img').src = out.toDataURL('image/png');
+            document.getElementById('selfie-preview').classList.add('active');
+        });
+
+        // ─── PREVIEW ACTIONS ───
+        document.getElementById('btn-retake').addEventListener('click', function() {
+            document.getElementById('selfie-preview').classList.remove('active');
+        });
+        document.getElementById('btn-save').addEventListener('click', function() {
+            var a = document.createElement('a');
+            a.href = document.getElementById('selfie-preview-img').src;
+            a.download = 'sharks-way-selfie-' + Date.now() + '.png';
+            a.click();
+            document.getElementById('selfie-preview').classList.remove('active');
+        });
+        document.getElementById('btn-share').addEventListener('click', function() {
+            var imgSrc = document.getElementById('selfie-preview-img').src;
+            if (navigator.share) {
+                fetch(imgSrc).then(function(r) { return r.blob(); }).then(function(blob) {
+                    var file = new File([blob], 'sharks-way-selfie.png', { type: 'image/png' });
+                    navigator.share({ title: 'Sharks Way AR Selfie 🦈', files: [file] });
+                });
+            } else {
+                navigator.clipboard.writeText('Check out my Sharks Way AR selfie! #SharksWayAR #Immersion2026')
+                    .then(function() { alert('Caption copied!'); });
+            }
+        });
+    </script>
+</body>
+</html>

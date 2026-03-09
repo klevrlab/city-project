@@ -255,6 +255,67 @@
             50% { transform: scale(1.1); opacity: 1; }
         }
 
+        /* Blob/contact shadow under 3D model (cheap, no GPU cost) */
+        #model-blob-shadow {
+            position: absolute;
+            left: 50%;
+            bottom: 8%;
+            width: 55%;
+            padding-bottom: 25%;
+            transform: translateX(-50%);
+            border-radius: 50%;
+            background: radial-gradient(ellipse 100% 50% at 50% 100%, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.12) 45%, transparent 70%);
+            pointer-events: none;
+            z-index: -1;
+        }
+        #model-overlay:not(.visible) #model-blob-shadow { opacity: 0; transition: opacity 0.3s ease; }
+        #model-overlay.visible #model-blob-shadow { opacity: 1; }
+
+        /* AR quality debug panel (minimal, removable via ?debug=0) */
+        #ar-debug {
+            display: none;
+            position: fixed;
+            top: 60px;
+            left: 10px;
+            z-index: 9998;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0,255,255,0.35);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #0ff;
+            line-height: 1.5;
+            max-width: 200px;
+        }
+        #ar-debug.visible { display: block; }
+        #ar-debug .row { margin: 4px 0; }
+        #ar-debug .label { opacity: 0.8; }
+        #ar-debug button {
+            margin-top: 8px;
+            margin-right: 6px;
+            padding: 4px 10px;
+            font-size: 10px;
+            background: #003333;
+            color: #0ff;
+            border: 1px solid #0ff;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        #ar-debug button.active { background: rgba(0,255,255,0.2); }
+        #ar-debug button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Wrapper for cinematic tonemap (camera + 3D overlay only) */
+        #scene-tonemap-wrapper {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            filter: url(#cinematic-tonemap);
+        }
+        #scene-tonemap-wrapper #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+        #scene-tonemap-wrapper #model-overlay { z-index: 50; }
+
         /* Shark name label under model */
         #shark-label {
             position: fixed;
@@ -517,8 +578,47 @@
     </style>
 </head>
 <body>
-    <!-- Camera feed -->
-    <video id="video" autoplay playsinline muted></video>
+    <!-- Cinematic tonemap: SVG filter applied to camera + 3D scene (S-curve, lifted blacks, soft highlights) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;visibility:hidden" aria-hidden="true">
+        <defs>
+            <filter id="cinematic-tonemap" color-interpolation-filters="sRGB">
+                <feComponentTransfer>
+                    <!-- S-curve: lifted shadows, gentle contrast, soft highlight roll-off (cinematic film look) -->
+                    <feFuncR type="table" tableValues="0.02 0.12 0.28 0.45 0.62 0.78 0.90 0.96 0.99 1"/>
+                    <feFuncG type="table" tableValues="0.02 0.12 0.28 0.45 0.62 0.78 0.90 0.96 0.99 1"/>
+                    <feFuncB type="table" tableValues="0.02 0.12 0.28 0.45 0.62 0.78 0.90 0.96 0.99 1"/>
+                </feComponentTransfer>
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="scene-tonemap-wrapper">
+        <!-- Camera feed -->
+        <video id="video" autoplay playsinline muted></video>
+        <!-- 3D Plushie overlay -->
+        <!-- AR visual quality: model-viewer provides the "scene" (no A-Frame). Exposure + tone-mapping improve contrast/roll-off; lighting is environment-based (neutral IBL). -->
+        <div id="model-overlay">
+            <div id="model-glow"></div>
+            <div id="model-blob-shadow" aria-hidden="true"></div>
+            <model-viewer
+                id="shark-model-viewer"
+                src="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb"
+                auto-rotate
+                rotation-per-second="30deg"
+                camera-orbit="0deg 75deg auto"
+                field-of-view="45deg"
+                min-field-of-view="30deg"
+                max-field-of-view="60deg"
+                disable-zoom
+                interaction-prompt="none"
+                environment-image="neutral"
+                shadow-intensity="0.5"
+                exposure="1.15"
+                style="background: transparent; overflow: visible;"
+            ></model-viewer>
+        </div>
+    </div>
+
     <canvas id="debug-canvas" width="224" height="224"></canvas>
 
     <!-- Loading overlay -->
@@ -613,26 +713,6 @@
             if (typeof dismissAll === 'function') dismissAll();
         });
     </script>
-
-    <!-- 3D Plushie overlay -->
-    <div id="model-overlay">
-        <div id="model-glow"></div>
-        <model-viewer
-            id="shark-model-viewer"
-            src="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb"
-            auto-rotate
-            rotation-per-second="30deg"
-            camera-orbit="0deg 75deg auto"
-            field-of-view="45deg"
-            min-field-of-view="30deg"
-            max-field-of-view="60deg"
-            disable-zoom
-            interaction-prompt="none"
-            environment-image="neutral"
-            shadow-intensity="0.5"
-            style="background: transparent; overflow: visible;"
-        ></model-viewer>
-    </div>
 
     <!-- EOE Map Overlay -->
     <div id="eoe-map-overlay" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,10,20,0.92);backdrop-filter:blur(12px);flex-direction:column;align-items:center;justify-content:center;padding:24px;">
@@ -732,6 +812,16 @@
             <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
             San Pedro Sq
         </div>
+    </div>
+
+    <!-- AR quality debug: FPS, renderer info, Baseline vs Enhanced toggle (?debug=1 or key D) -->
+    <div id="ar-debug">
+        <div class="row"><span class="label">FPS</span> <span id="ar-debug-fps">--</span></div>
+        <div class="row"><span class="label">Exposure</span> <span id="ar-debug-exposure">--</span></div>
+        <div class="row"><span class="label">Shadow</span> <span id="ar-debug-shadow">--</span></div>
+        <div class="row"><span class="label">Mode</span> <span id="ar-debug-mode">--</span></div>
+        <button type="button" id="ar-debug-baseline">Baseline</button>
+        <button type="button" id="ar-debug-enhanced">Enhanced</button>
     </div>
 
     <script>
@@ -1099,6 +1189,7 @@
             // Show event info + sound
             showEvent(dummyEvents[STATE.currentEventIndex]);
             playSound('found');
+            if (navigator.vibrate) navigator.vibrate(50);
 
         }
 
@@ -1161,6 +1252,104 @@
         }
 
         init();
+
+        // ─── AR quality & debug (model-viewer: exposure, materials, shadow, A/B toggle) ───
+        (function() {
+            var viewer = document.getElementById('shark-model-viewer');
+            if (!viewer) return;
+            var debugEl = document.getElementById('ar-debug');
+            var urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('debug') === '1') debugEl.classList.add('visible');
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'D' || e.key === 'd') debugEl.classList.toggle('visible');
+            });
+
+            var AR_QUALITY = {
+                baseline: { exposure: 1, shadowIntensity: 0.3, materialTweak: false },
+                enhanced: { exposure: 1.15, shadowIntensity: 0.5, materialTweak: true }
+            };
+            var currentMode = 'enhanced';
+
+            function applyMode(mode) {
+                var c = AR_QUALITY[mode];
+                viewer.setAttribute('exposure', c.exposure);
+                viewer.setAttribute('shadow-intensity', String(c.shadowIntensity));
+                currentMode = mode;
+                var modeSpan = document.getElementById('ar-debug-mode');
+                if (modeSpan) modeSpan.textContent = mode;
+                console.log('[AR Quality]', mode, c);
+            }
+
+            function tweakPBRMaterials(view) {
+                try {
+                    var model = view.model;
+                    if (!model && typeof Object.getOwnPropertySymbols === 'function') {
+                        var syms = Object.getOwnPropertySymbols(view);
+                        for (var i = 0; i < syms.length; i++) {
+                            var val = view[syms[i]];
+                            if (val && val.type === 'Scene' && val.children && val.children.length) model = val.children[0];
+                            if (model) break;
+                        }
+                    }
+                    if (!model) return;
+                    model.traverse(function(obj) {
+                        if (obj.isMesh && obj.material) {
+                            var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            mats.forEach(function(mat) {
+                                if (mat.roughness !== undefined) mat.roughness = Math.min(1, mat.roughness * 1.08);
+                                if (mat.metalness !== undefined) mat.metalness = Math.max(0, mat.metalness * 0.97);
+                            });
+                        }
+                    });
+                } catch (err) { console.warn('PBR tweak:', err); }
+            }
+
+            viewer.addEventListener('load', function() {
+                if (AR_QUALITY[currentMode].materialTweak) tweakPBRMaterials(viewer);
+            });
+
+            document.getElementById('ar-debug-baseline').addEventListener('click', function() {
+                applyMode('baseline');
+                document.getElementById('ar-debug-baseline').classList.add('active');
+                document.getElementById('ar-debug-enhanced').classList.remove('active');
+            });
+            document.getElementById('ar-debug-enhanced').addEventListener('click', function() {
+                applyMode('enhanced');
+                document.getElementById('ar-debug-enhanced').classList.add('active');
+                document.getElementById('ar-debug-baseline').classList.remove('active');
+            });
+            applyMode('enhanced');
+            document.getElementById('ar-debug-enhanced').classList.add('active');
+
+            var lastFpsTime = performance.now();
+            var fpsFrameCount = 0;
+            function updateDebugPanel() {
+                if (!debugEl.classList.contains('visible')) {
+                    requestAnimationFrame(updateDebugPanel);
+                    return;
+                }
+                var overlay = document.getElementById('model-overlay');
+                var now = performance.now();
+                if (overlay && overlay.classList.contains('visible')) {
+                    fpsFrameCount++;
+                    if (now - lastFpsTime >= 500) {
+                        var fpsEl = document.getElementById('ar-debug-fps');
+                        if (fpsEl) fpsEl.textContent = (fpsFrameCount * 1000 / (now - lastFpsTime)).toFixed(1);
+                        var expEl = document.getElementById('ar-debug-exposure');
+                        if (expEl) expEl.textContent = viewer.getAttribute('exposure') || '--';
+                        var shEl = document.getElementById('ar-debug-shadow');
+                        if (shEl) shEl.textContent = viewer.getAttribute('shadow-intensity') || '--';
+                        fpsFrameCount = 0;
+                        lastFpsTime = now;
+                    }
+                } else {
+                    lastFpsTime = now;
+                    fpsFrameCount = 0;
+                }
+                requestAnimationFrame(updateDebugPanel);
+            }
+            requestAnimationFrame(updateDebugPanel);
+        })();
     </script>
 
     <!-- Navigation Menu Script -->

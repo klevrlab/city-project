@@ -104,7 +104,10 @@ went from ~57 MB to ~6 MB.
 
 Optimized GLBs (originals in git history): Athena textures resized to 1024
 (`npx @gltf-transform/cli resize in.glb out.glb --width 1024 --height 1024`); tower and Stella
-Draco-compressed (`npx @gltf-transform/cli draco in.glb out.glb`). Re-run after any re-export.
+Draco-compressed (`npx @gltf-transform/cli draco in.glb out.glb`); Sharkie's 3000 px textures
+capped at 2048 (root and `assets/` copies are the same file). **`resize` drops Draco on write** —
+run `draco` again afterwards on a file that had it, or a 3.6 MB Sharkie becomes 17.8 MB. Re-run
+after any re-export from Blender.
 
 **Athena in Photo Mode:** a third chip appears only while the Little Italy drop is on offer;
 2.5 m tall, placed 2.5–5 m out, and on the shoulder in front-camera selfie.

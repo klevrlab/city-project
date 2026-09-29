@@ -57,28 +57,29 @@ npx localtunnel --port 8080
 
 ## Production Deployment
 
-### GitHub Pages
+### GitHub Pages (how this repo deploys)
 
-1. **Enable GitHub Pages**
-```bash
-# Push to GitHub
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/username/repo.git
-git push -u origin main
-```
+Live site: **https://klevrlab.github.io/city-project/**
 
-2. **Configure Pages**
-- Go to repository Settings → Pages
-- Source: Deploy from branch `main`
-- Folder: `/ (root)`
-- Save
+1. **Push to `main`.** `.github/workflows/deploy-pages.yml` runs `npm install` + `npm run build`
+   and publishes `dist/` to GitHub Pages — about a minute end to end. Only `main` deploys: Pages
+   hosts a single site, so a deploy from any other branch would replace production.
+2. **Check it.** The workflow run is under the repo's Actions tab; the built page references a
+   hashed bundle (`assets/sharkAr8thwall-<hash>.js`), so a new hash in the live HTML means the new
+   build is up. GitHub Pages caches pages for up to 10 minutes — reload if a phone shows the old one.
+3. **Before pushing**, run `npm run build` and serve `dist/` (`npm run preview`) — that is exactly
+   what gets deployed. `vite.config.js` copies `assets/` and `data/` into `dist/` because Vite
+   can't see runtime fetches of GLBs and JSON.
 
-3. **Access**
-```
-https://username.github.io/repo/
-```
+**Known quirk — second deploy path.** The repository's Pages settings still name
+`feat/soccer-8thwall-prototype` as a "Deploy from a branch" source, so a push to that branch
+publishes its files *unbuilt* over the site. That branch currently mirrors `main`
+(`git push origin main:feat/soccer-8thwall-prototype`) and the site is written to work served raw
+(no CSS imports from JS, `.nojekyll` at the root), so either path yields a working site. The clean
+fix needs a repo admin: Settings → Pages → Build and deployment → Source → **GitHub Actions**.
+
+To host a copy elsewhere (a fork's own Pages, Netlify, Vercel), deploy the output of
+`npm run build` (`dist/`) — or, without a build, the repository root as-is.
 
 ### 8th Wall engine via companion repository (optional)
 

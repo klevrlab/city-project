@@ -2,6 +2,8 @@
 
 WebAR platform for the Sharks Way corridor between downtown San José and SAP Center, built by SJSU students and faculty as part of **Immersion 2026**.
 
+**Live:** https://klevrlab.github.io/city-project/ — every push to `main` deploys there (GitHub Actions → GitHub Pages).
+
 ## About Immersion 2026
 
 Immersion 2026 is a multi-phase augmented reality (AR) public art experience connecting San José State University, downtown San José, and major cultural events. The web-based AR platform links SJSU, City Hall, SAP Center, and downtown districts through animated AR public art and murals, interactive selfies with mascots and characters, and location-based storytelling and event activations — no app required.
@@ -20,8 +22,23 @@ The project is proudly supported by **Reimagining the Civic Commons**.
 
 ### Local Development
 ```bash
+npm install
+npm run dev        # Vite dev server
+npm run build      # production build into dist/ (what gets deployed)
+```
+
+The pages also run served straight from the repo, with no build step:
+```bash
 python3 -m http.server 8080
 ```
+
+### Testing on a laptop
+8th Wall needs a phone, but everything around it runs on a desktop with the built-in simulator
+(WASD + mouse, fake GPS):
+```
+shark-ar-8thwall.html?desktop=1&at=littleitaly     # or at=river | sap | underpass
+```
+Add `&debug=1` for the placement/debug panel and `&demoLocations=1` to unlock every location drop.
 
 ### Mobile Testing
 Access on phone via local IP (same WiFi):
@@ -38,8 +55,11 @@ npx localtunnel --port 8080
 
 ### 1. Sharks Way (8th Wall)
 **File:** `shark-ar-8thwall.html` (also served at the legacy `sharks-way.html` URL via redirect)
-**Tech:** 8th Wall WebAR + A-Frame
-GPS-triggered Wayfinding cycle — Maria and Jimmy sharks appear alternately and swim through (no tap needed). Tapping the ground "drops" a Jimmy that loops in place so visitors can walk around it.
+**Tech:** 8th Wall WebAR + A-Frame + TensorFlow.js (MobileNet) + MediaPipe Pose
+- **Wayfinding** — point the camera at a painted shark on the sidewalk and Maria or Jimmy (alternating) swims up, pauses and swims off. Tapping the ground "drops" a Jimmy that loops in place so visitors can walk around it.
+- **Location drops** — near Little Italy, the Guadalupe River and SAP Center, a bar at the bottom offers extra tap-to-place content: Athena and the 8 m Leaning Tower, a shark jumping from the river, and a party (dancing mascots, sharks circling the visitor, a jumping shark). GPS only decides what's offered; everything lands where the visitor taps.
+- **Photo Mode** — place Sharkie or Sammy (and Athena, near Little Italy) and snap a photo, or flip to the front camera for a selfie with the character on your shoulder.
+- **Goalie Mode** — drop a goal and hockey puck; Sharkie defends.
 
 ### 2. Location Tour
 **File:** `location-tour.html`
@@ -66,7 +86,7 @@ Swipe-to-kick soccer mini-game with a procedural net, post/crossbar bounce, and 
 - **HTTPS:** Required for camera and GPS access
 - **Browser:** iOS Safari 13+ or Android Chrome 80+
 - **Permissions:** Camera and location access
-- **Network:** ~8MB initial load from CDNs
+- **Network:** the wayfinding sharks (~6 MB) load at start; each location's models download as the visitor approaches it
 
 ## Project Structure
 
@@ -85,9 +105,10 @@ City-Project/
 │   ├── systems/            # event-system
 │   └── utils/              # GPS, audio, math, embedding helpers
 ├── index.html              # Landing page
-├── marker-demo.html
-├── sharks-way.html
-├── shark-ar-8thwall.html
+├── shark-ar-8thwall.html   # Main Sharks Way experience
+├── sharks-way.html         # Redirect → shark-ar-8thwall.html
+├── soccer-ar-8thwall.html
+├── mural-ar.html
 ├── location-tour.html
 ├── selfie-ar.html
 └── shark-ar-demo.html

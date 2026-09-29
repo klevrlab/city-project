@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="utf-8">
@@ -7,6 +7,20 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Sharks Way - Selfie AR</title>
+    <meta name="description" content="Take a selfie with Sammy Spartan or Sharkie standing on your shoulder — no app needed.">
+    <meta name="theme-color" content="#006D75">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
+    <!-- Link previews (iMessage, Slack, social). og:image must be an absolute URL. -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Selfie with Sammy or Sharkie — Sharks Way AR">
+    <meta property="og:description" content="Take a selfie with Sammy Spartan or Sharkie standing on your shoulder — no app needed.">
+    <meta property="og:url" content="https://klevrlab.github.io/city-project/selfie-ar.html">
+    <meta property="og:image" content="https://klevrlab.github.io/city-project/assets/icons/og-card.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./src/css/map-component.css?v=2" />
     <link rel="stylesheet" href="./src/css/progress-tracker.css" />
@@ -37,10 +51,11 @@
 
     <!-- Shark overlay positioned at shoulder by JS -->
     <div id="shark-overlay">
-        <model-viewer id="shark-viewer" src="./sammy_final_pose.glb" camera-orbit="0deg 75deg 150%"
-            field-of-view="60deg" min-field-of-view="40deg" max-field-of-view="90deg" disable-zoom
-            interaction-prompt="none" environment-image="neutral" shadow-intensity="0"
-            style="width:250px;height:250px;background:transparent;--poster-color:transparent;">
+        <!-- src is set by the script from ?character=. Framing matches the in-app
+             selfie (sharks-way-modes.js): the box is sized to the screen. -->
+        <model-viewer id="shark-viewer" camera-orbit="0deg 80deg 105%" camera-target="auto auto auto"
+            disable-zoom disable-pan interaction-prompt="none" environment-image="neutral" shadow-intensity="0"
+            style="width:210px;height:300px;background:transparent;--poster-color:transparent;">
         </model-viewer>
     </div>
 
@@ -56,37 +71,6 @@
         <a href="./index.html">&larr;</a>
         <h1>Selfie with Sammy</h1>
         
-    </div>
-
-    <!-- DEV panel -->
-    <div id="dev-panel" style="display: none;">
-        <span style="font-size:10px;opacity:0.6;">🛠 DEV MODEL</span>
-        <select id="glb-select">
-            <option value="./assets/3D-models/plushie_shark.glb">plushie_shark</option>
-            <option value="./assets/3D-models/MARIA_SHARK.glb">MARIA_SHARK</option>
-            <option value="./assets/3D-models/MARIA_SHARK_ANIMATED.glb">MARIA_SHARK_ANIMATED</option>
-            <option value="./assets/3D-models/SHAUN_SHARK.glb">SHAUN_SHARK</option>
-            <option value="./assets/3D-models/SHAUN_SHARK_ANIMATED.glb">SHAUN_SHARK_ANIMATED</option>
-            <option value="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb">STELLA_CAI_SHARK</option>
-            <option value="./assets/3D-models/mock_up_eoe_map.glb">mock_up_eoe_map</option>
-            <option value="./assets/3D-models/Pose_sharky_01.glb">Pose_sharky_01</option>
-            <option value="./assets/3D-models/Pose_sharky_01._no_glass.glb">Pose_sharky_01_no_glass</option>
-            <option value="./assets/3D-models/Pose_sharky_02.glb">Pose_sharky_02</option>
-            <option value="./sammy_final_pose.glb" selected>sammy_final_pose</option>
-        </select>
-        <div id="pose-status">No pose detected</div>
-        <label>Anchor:</label>
-        <select id="anchor-select">
-            <option value="left">Left shoulder</option>
-            <option value="right">Right shoulder</option>
-            <option value="mid" selected>Between shoulders</option>
-        </select>
-        <label>Size: <span id="size-val">250</span>px</label>
-        <input type="range" id="size-slider" min="80" max="700" step="10" value="250">
-        <label>Y nudge: <span id="y-nudge-val">-110</span>px</label>
-        <input type="range" id="y-nudge" min="-300" max="300" step="5" value="-110">
-        <label>X nudge: <span id="x-nudge-val">0</span>px</label>
-        <input type="range" id="x-nudge" min="-200" max="200" step="5" value="0">
     </div>
 
     <div id="selfie-hint">Step back so your shoulders are visible</div>
@@ -163,43 +147,71 @@
     </div>
 
     <script>
+        // Standalone "Selfie with Sammy / Sharkie" page (landing page + menu links).
+        // Placement, capture and sharing follow the in-app selfie in
+        // src/components/sharks-way-modes.js — the version the team tuned on site
+        // in September (heads were cut off, the photo didn't match the screen).
         var urlParams = new URLSearchParams(window.location.search);
-        var character = urlParams.get('character') || 'sammy';
+        // The landing page and menu link with ?character=sharkey.
+        var wantSharkie = /^shark(ey|ie)$/.test(urlParams.get('character') || '');
+        var CHARACTER = wantSharkie
+            ? { name: 'Sharkie', src: './assets/3D-models/sharkie_final_pose.glb' }
+            : { name: 'Sammy', src: './assets/3D-models/sammy_final_pose.glb' };
 
         var video = document.getElementById('video');
         var overlay = document.getElementById('shark-overlay');
         var viewer = document.getElementById('shark-viewer');
-        var poseStatus = document.getElementById('pose-status');
-        var DEV = { anchor: 'left', size: 250, yNudge: -110, xNudge: 70 };
-        var lastPos = null;
+        var hint = document.getElementById('selfie-hint');
+        var loadingMsg = document.getElementById('loading-msg');
 
-        if (character === 'sharkey') {
-            viewer.setAttribute('src', './assets/3D-models/sharkie_pose.glb');
-            document.title = 'Sharks Way - Selfie with Sharkie';
-            document.querySelector('#topbar h1').textContent = 'Selfie with Sharkie';
-        } else {
-            viewer.setAttribute('src', './sammy_final_pose.glb');
-            document.title = 'Sharks Way - Selfie with Sammy';
-            document.querySelector('#topbar h1').textContent = 'Selfie with Sammy';
+        // Mascot box height as a fraction of the screen, and how far it stands
+        // out from the right shoulder (screen px, before mirroring).
+        var HEIGHT_FRAC = 0.42;
+        var X_NUDGE = 50;
+        var lastRect = null;          // where the mascot was drawn, for the photo
+        var PHOTO_MIME = 'image/jpeg';
+        var PHOTO_QUALITY = 0.92;
+
+        function fieldLog(category, message) {
+            if (window.SharksWayLog) window.SharksWayLog.add(category, message);
         }
 
+        viewer.setAttribute('src', CHARACTER.src);
+        document.title = 'Sharks Way - Selfie with ' + CHARACTER.name;
+        document.querySelector('#topbar h1').textContent = 'Selfie with ' + CHARACTER.name;
+        viewer.addEventListener('load', function () { fieldLog('selfie', CHARACTER.name + ' model loaded'); });
+        viewer.addEventListener('error', function () { fieldLog('error', CHARACTER.name + ' model failed to load'); });
+
         // ─── CAMERA ───
+        fieldLog('selfie', 'standalone selfie start (' + CHARACTER.name + ')');
         navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
             audio: false
         }).then(function (stream) {
             video.srcObject = stream;
-            video.play();
-            setTimeout(function () {
-                initPose();
-            }, 2000);
+            var track = stream.getVideoTracks()[0];
+            var s = track && track.getSettings ? track.getSettings() : {};
+            fieldLog('selfie', 'front camera ' + s.width + 'x' + s.height + ' ' + (s.facingMode || ''));
+            return video.play();
+        }).then(function () {
+            setTimeout(initPose, 500);
         }).catch(function (e) {
-            document.getElementById('loading-msg').textContent = 'Camera error: ' + e.message;
+            fieldLog('error', 'front camera failed: ' + (e && e.name) + ': ' + (e && e.message));
+            loadingMsg.textContent = e && e.name === 'NotAllowedError'
+                ? 'Camera blocked — allow camera access for this site and reload.'
+                : 'Camera error: ' + (e && e.message);
         });
 
         // ─── MEDIAPIPE POSE ───
         function initPose() {
-            document.getElementById('loading-msg').textContent = 'Loading pose model...';
+            if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
+                fieldLog('error', 'MediaPipe Pose/Camera not loaded');
+                loadingMsg.textContent = 'Could not load the pose tracker — check your connection and reload.';
+                return;
+            }
+            loadingMsg.textContent = 'Loading pose model...';
+            var poseStart = performance.now();
+            var firstPose = true;
             var pose = new Pose({
                 locateFile: function (f) {
                     return 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/' + f;
@@ -212,92 +224,94 @@
                 minDetectionConfidence: 0.5,
                 minTrackingConfidence: 0.5
             });
-            pose.onResults(onResults);
+            pose.onResults(function (results) {
+                if (firstPose && results.poseLandmarks) {
+                    firstPose = false;
+                    fieldLog('selfie', 'first pose ' + Math.round(performance.now() - poseStart) + 'ms after start');
+                }
+                onResults(results);
+            });
 
             var camera = new Camera(video, {
                 onFrame: async function () {
-                    await pose.send({ image: video });
+                    try { await pose.send({ image: video }); } catch (e) { /* frame drop */ }
                 },
                 width: 1280, height: 720
             });
             camera.start().then(function () {
                 document.getElementById('selfie-loading').classList.add('hidden');
-                setTimeout(function () {
-                    document.getElementById('selfie-hint').style.opacity = '0';
-                }, 5000);
+            }).catch(function (e) {
+                fieldLog('error', 'pose camera failed to start: ' + (e && e.name) + ': ' + (e && e.message));
+                loadingMsg.textContent = 'Camera error: ' + (e && e.message);
             });
         }
 
+        /**
+         * Where the video is actually drawn. The preview is object-fit: cover, so
+         * the frame is scaled up and cropped to fill the screen; MediaPipe's
+         * landmarks are in *frame* coordinates. Mapping them straight onto the
+         * window was off by the crop — the mascot's head left the screen.
+         */
+        function coverRect() {
+            var W = window.innerWidth;
+            var H = window.innerHeight;
+            var vw = video.videoWidth || W;
+            var vh = video.videoHeight || H;
+            var scale = Math.max(W / vw, H / vh);
+            var w = vw * scale;
+            var h = vh * scale;
+            return { x: (W - w) / 2, y: (H - h) / 2, w: w, h: h };
+        }
+
         // ─── POSE RESULTS ───
-        // MediaPipe Pose landmarks: 11 = left shoulder, 12 = right shoulder
-        // Coords are normalized 0-1. Video is mirrored so we flip X.
+        // Landmarks: 11 = left shoulder, 12 = right shoulder (normalized 0-1).
         function onResults(results) {
+            // The hint is only for when there are no shoulders to stand on.
+            hint.style.opacity = results.poseLandmarks ? '0' : '1';
             if (!results.poseLandmarks) {
-                poseStatus.textContent = 'No pose detected';
-                poseStatus.classList.remove('detected');
                 overlay.classList.remove('visible');
+                lastRect = null;
                 return;
             }
             var lm = results.poseLandmarks;
-            var leftShoulder = lm[11]; // x,y normalized
-            var rightShoulder = lm[12];
-
-            if (!leftShoulder || !rightShoulder) return;
+            var left = lm[11];
+            var right = lm[12];
+            if (!left || !right) return;
 
             var W = window.innerWidth;
             var H = window.innerHeight;
-            var half = DEV.size / 2;
+            var r = coverRect();
+            // Mirrored preview → flip X.
+            function toScreen(p) { return { x: r.x + (1 - p.x) * r.w, y: r.y + p.y * r.h }; }
+            var ls = toScreen(left);
+            var rs = toScreen(right);
 
-            // Video is mirrored via CSS scaleX(-1), so flip X
-            var lx = (1 - leftShoulder.x) * W;
-            var ly = leftShoulder.y * H;
-            var rx = (1 - rightShoulder.x) * W;
-            var ry = rightShoulder.y * H;
+            // Feet on the right shoulder, nudged outward and blended a little
+            // toward the middle so it doesn't jitter off the edge of the body.
+            var footX = (rs.x + X_NUDGE) * 0.75 + ((ls.x + rs.x) / 2) * 0.25;
+            var footY = rs.y * 0.75 + ((ls.y + rs.y) / 2) * 0.25;
 
-            var px, py;
-            if (DEV.anchor === 'left') { px = lx - 30; py = ly; }
-            else if (DEV.anchor === 'right') { px = rx + 90; py = ry; }
-            else { px = (lx + rx) / 2; py = (ly + ry) / 2; }
+            // Taller than wide; shrink rather than let the head leave the screen.
+            var margin = 8;
+            var h = Math.round(H * HEIGHT_FRAC);
+            h = Math.min(h, Math.max(140, footY - margin));
+            var w = Math.round(h * 0.7);
+            var x = Math.min(Math.max(footX - w / 2, margin), W - w - margin);
+            var y = Math.min(Math.max(footY - h, margin), H - h - margin);
 
-            px += DEV.xNudge;
-            py += DEV.yNudge;
-
-            // Allow model to move freely, no clamping
-            overlay.style.left = (px - half) + 'px';
-            overlay.style.top = (py - half) + 'px';
+            overlay.style.left = x + 'px';
+            overlay.style.top = y + 'px';
+            viewer.style.width = w + 'px';
+            viewer.style.height = h + 'px';
             overlay.classList.add('visible');
-            viewer.style.width = DEV.size + 'px';
-            viewer.style.height = DEV.size + 'px';
-
-            poseStatus.textContent = 'Shoulders detected';
-            poseStatus.classList.add('detected');
-            lastPos = { px: px, py: py };
+            lastRect = { x: x, y: y, w: w, h: h };
         }
 
-        // ─── DEV CONTROLS ───
-        document.getElementById('glb-select').addEventListener('change', function () {
-            viewer.setAttribute('src', this.value);
-        });
-        document.getElementById('anchor-select').addEventListener('change', function () {
-            DEV.anchor = this.value;
-        });
-        document.getElementById('size-slider').addEventListener('input', function () {
-            DEV.size = parseInt(this.value);
-            document.getElementById('size-val').textContent = DEV.size;
-            viewer.style.width = DEV.size + 'px';
-            viewer.style.height = DEV.size + 'px';
-        });
-        document.getElementById('y-nudge').addEventListener('input', function () {
-            DEV.yNudge = parseInt(this.value);
-            document.getElementById('y-nudge-val').textContent = DEV.yNudge;
-        });
-        document.getElementById('x-nudge').addEventListener('input', function () {
-            DEV.xNudge = parseInt(this.value);
-            document.getElementById('x-nudge-val').textContent = DEV.xNudge;
-        });
-
         // ─── SNAP ───
-        document.getElementById('selfie-snap').addEventListener('click', function () {
+        // Capture what the visitor sees: the cover-cropped, mirrored preview with
+        // the mascot where it was drawn (model-viewer renders it via toDataURL).
+        document.getElementById('selfie-snap').addEventListener('click', async function () {
+            if (!video.videoWidth) return;
             var flash = document.getElementById('selfie-flash');
             flash.style.opacity = '1';
             setTimeout(function () {
@@ -306,120 +320,94 @@
                 setTimeout(function () { flash.style.transition = ''; }, 400);
             }, 60);
 
-            // Composite: draw video frame + model-viewer canvas onto output canvas
+            var t0 = performance.now();
+            var dpr = Math.min(window.devicePixelRatio || 1, 2);
+            var W = window.innerWidth;
+            var H = window.innerHeight;
             var out = document.createElement('canvas');
-            out.width = video.videoWidth;
-            out.height = video.videoHeight;
+            out.width = Math.round(W * dpr);
+            out.height = Math.round(H * dpr);
             var ctx = out.getContext('2d');
+            ctx.scale(dpr, dpr);
 
-            // Calculate scale factors
-            var scaleX = video.videoWidth / window.innerWidth;
-            var scaleY = video.videoHeight / window.innerHeight;
-
-            // Draw mirrored video to match live view
+            var r = coverRect();
             ctx.save();
-            ctx.translate(out.width, 0);
+            ctx.translate(W, 0);
             ctx.scale(-1, 1);
-            ctx.drawImage(video, 0, 0, out.width, out.height);
+            ctx.drawImage(video, W - r.x - r.w, r.y, r.w, r.h);
             ctx.restore();
 
-            // Draw model-viewer on top at shoulder position
-            if (lastPos) {
-                var mvCanvas = viewer.shadowRoot ? viewer.shadowRoot.querySelector('canvas') : null;
-                if (mvCanvas) {
-                    // Draw shark with same mirroring as video
-                    ctx.save();
-                    ctx.translate(out.width, 0);
-                    ctx.scale(-1, 1);
-                    // Flip X position since we're in mirrored coordinate space
-                    var x = (out.width / scaleX - lastPos.px - DEV.size / 2) * scaleX;
-                    var y = (lastPos.py - DEV.size / 2) * scaleY;
-                    var sharkWidth = DEV.size * scaleX;
-                    var sharkHeight = DEV.size * scaleY;
-                    // Mirror the shark model itself
-                    ctx.translate(x + sharkWidth, y);
-                    ctx.scale(-1, 1);
-                    ctx.drawImage(mvCanvas, 0, 0, sharkWidth, sharkHeight);
-                    ctx.restore();
+            var rect = lastRect;
+            if (rect && typeof viewer.toDataURL === 'function') {
+                try {
+                    var img = new Image();
+                    img.src = viewer.toDataURL('image/png');
+                    await img.decode();
+                    ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
+                } catch (e) {
+                    fieldLog('error', 'mascot capture failed: ' + (e && e.message));
                 }
             }
 
-            document.getElementById('selfie-preview-img').src = out.toDataURL('image/png');
+            var url = out.toDataURL(PHOTO_MIME, PHOTO_QUALITY);
+            fieldLog('photo', 'selfie capture ' + out.width + 'x' + out.height + ', ' +
+                Math.round(url.length * 0.75 / 1024) + 'KB in ' + Math.round(performance.now() - t0) + 'ms' +
+                (rect ? '' : ' (no mascot — no shoulders in view)'));
+            document.getElementById('selfie-preview-img').src = url;
             document.getElementById('selfie-preview').classList.add('active');
         });
 
         // ─── PREVIEW ACTIONS ───
+        function photoFile() {
+            var dataUrl = document.getElementById('selfie-preview-img').src;
+            var comma = dataUrl.indexOf(',');
+            var mime = (dataUrl.slice(0, comma).match(/^data:([^;,]+)/) || [])[1] || PHOTO_MIME;
+            var bin = atob(dataUrl.slice(comma + 1));
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return new File([bytes], 'sharks-way-selfie.' + (mime === 'image/png' ? 'png' : 'jpg'), { type: mime });
+        }
+
         document.getElementById('btn-retake').addEventListener('click', function () {
             document.getElementById('selfie-preview').classList.remove('active');
         });
         document.getElementById('btn-save').addEventListener('click', function () {
             var a = document.createElement('a');
             a.href = document.getElementById('selfie-preview-img').src;
-            a.download = 'sharks-way-selfie-' + Date.now() + '.png';
+            a.download = 'sharks-way-selfie-' + Date.now() + '.jpg';
             a.click();
+            fieldLog('photo', 'saved (download)');
             document.getElementById('selfie-preview').classList.remove('active');
         });
+        // Straight from the tap, no awaits first: Safari only allows share() then.
         document.getElementById('btn-share').addEventListener('click', function () {
-            var imgSrc = document.getElementById('selfie-preview-img').src;
-            if (navigator.share) {
-                fetch(imgSrc).then(function (r) { return r.blob(); }).then(function (blob) {
-                    navigator.share({ files: [new File([blob], 'sharks-way-selfie.png', { type: 'image/png' })] });
+            var file;
+            try { file = photoFile(); } catch (e) { alert('Share failed — use Save'); return; }
+            if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [file] }))) {
+                fieldLog('photo', 'share not supported for files on this browser');
+                alert('Sharing isn\'t supported in this browser — use Save.');
+                return;
+            }
+            navigator.share({ files: [file], title: 'Sharks Way Selfie' })
+                .then(function () { fieldLog('photo', 'shared'); })
+                .catch(function (e) {
+                    fieldLog('photo', 'share ended: ' + (e && e.name));
+                    if (e && e.name !== 'AbortError') alert('Share failed — use Save.');
                 });
-            } else {
-                navigator.clipboard.writeText('Check out my Sharks Way selfie!')
-                    .then(function () { alert('Caption copied!'); });
-            }
         });
 
-        // Navigation Menu
-        const navMenu = document.getElementById('nav-menu');
-        const navOverlay = document.getElementById('nav-overlay');
-        const hamburgerBtn = document.getElementById('hamburger-btn');
-        const closeMenuBtn = document.getElementById('close-menu');
+        // Menu: src/components/navigation.js wires the hamburger, close button and
+        // overlay itself. (This page used to wire them here too, before they
+        // existed — that threw, and stopped the map and GPS code below.)
 
-        function openMenu() {
-            navMenu.classList.add('open');
-            navOverlay.classList.add('visible');
-        }
-
-        function closeMenu() {
-            navMenu.classList.remove('open');
-            navOverlay.classList.remove('visible');
-        }
-
-        hamburgerBtn.addEventListener('click', openMenu);
-        hamburgerBtn.addEventListener('touchend', function (e) {
-            e.preventDefault();
-            openMenu();
-        });
-
-        closeMenuBtn.addEventListener('click', closeMenu);
-        closeMenuBtn.addEventListener('touchend', function (e) {
-            e.preventDefault();
-            closeMenu();
-        });
-
-        navOverlay.addEventListener('click', closeMenu);
-        navOverlay.addEventListener('touchend', function (e) {
-            e.preventDefault();
-            closeMenu();
-        });
-
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && navMenu.classList.contains('open')) {
-                closeMenu();
-            }
-        });
-
-        // Map functionality
+        // ─── MAP ───
         var map = null;
         var userMarker = null;
         var userLat = null;
         var userLng = null;
 
         function initializeMap() {
-            if (map) return;
-
+            if (map || typeof L === 'undefined') return;
             var mapContainer = document.getElementById('mini-map');
             map = L.map(mapContainer, {
                 zoomControl: false,
@@ -432,21 +420,14 @@
         }
 
         function updateMap() {
-            if (!map || !userLat || !userLng) return;
-
+            if (!map || !userLat || !userLng || !window.updateMapMarkers) return;
             map.setView([userLat, userLng], 16);
-
-            // Use shared marker system
-            var mapContainer = document.getElementById('map-container');
-            var isExpanded = mapContainer.classList.contains('expanded');
-            userMarker = updateMapMarkers(map, userLat, userLng, userMarker, isExpanded);
+            var isExpanded = document.getElementById('map-container').classList.contains('expanded');
+            userMarker = window.updateMapMarkers(map, userLat, userLng, userMarker, isExpanded);
         }
 
         document.getElementById('toggle-map').addEventListener('click', function () {
-            var mapContainer = document.getElementById('map-container');
-            var isExpanded = mapContainer.classList.toggle('expanded');
-
-
+            document.getElementById('map-container').classList.toggle('expanded');
             setTimeout(function () {
                 if (map) {
                     map.invalidateSize();
@@ -460,28 +441,18 @@
                 function (position) {
                     userLat = position.coords.latitude;
                     userLng = position.coords.longitude;
-
-                    if (!map) {
-                        initializeMap();
-                    }
+                    if (!map) initializeMap();
                     updateMap();
                 },
                 function (error) {
-                    console.error('Geolocation error:', error);
+                    fieldLog('gps', 'unavailable: ' + (error && error.message));
                 },
-                { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
             );
         }
 
-        setTimeout(function () {
-            if (!map) {
-                initializeMap();
-            }
-        }, 1000);
+        setTimeout(initializeMap, 1000);
     </script>
-
-    <!-- GPS Tracking for Checkpoints -->
-    <script type="module" src="./src/utils/shared-gps-tracking.js"></script>
 
     <!-- Navigation Component -->
     <script type="module">

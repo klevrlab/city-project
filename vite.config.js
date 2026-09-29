@@ -21,7 +21,10 @@ function copyStaticAssets() {
           cpSync(resolve(__dirname, f), resolve(outDir, f));
         }
       }
-      console.log('✓ copied static assets (assets/, data/, root GLB/patt) into dist/');
+      // GitHub Pages' not-found page. Copied, not built: its links are absolute
+      // (/city-project/...) because it's served for arbitrary missing paths.
+      cpSync(resolve(__dirname, '404.html'), resolve(outDir, '404.html'));
+      console.log('✓ copied static assets (assets/, data/, root GLB/patt, 404.html) into dist/');
     }
   };
 }

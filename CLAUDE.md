@@ -67,7 +67,7 @@ city-project/
 |---|---|---|
 | WebAR | 8th Wall engine-binary + xrextras | 1.0.0 (pinned) |
 | WebAR fallback | AR.js | 3.4.5 |
-| 3D scenes | A-Frame | 1.6.0 |
+| 3D scenes | A-Frame — 8th Wall's 8frame fork on the 8th Wall pages | 1.5.0, vendored in `assets/vendor/8frame/` |
 | AI detection | TensorFlow.js + MobileNet v2 | 4.22.0 |
 | 3D model viewer | model-viewer | 3.4.0 |
 | Maps | Leaflet.js | 1.9.4 |

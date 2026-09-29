@@ -213,13 +213,26 @@
    * modelUrl the package assumes [-1, 1], which would shift every embedding
    * away from the enrolled ones and quietly stop all matches.
    */
-  var LOCAL_MODEL_URL = './assets/models/mobilenet_v2_100_224/model.json';
+  var LOCAL_MODELS = {
+    // Default: the same weights stored as float16 — 7 MB instead of 14 MB,
+    // decoded back to float32 by TF.js on load. Against the float32 model:
+    // embeddings agree to cos ≥ 0.9997, same best match, scores within
+    // ±0.003 — far inside the frame-to-frame spread of a real scan.
+    f16: './assets/models/mobilenet_v2_100_224_f16/model.json',
+    // Full precision, for comparing on site: ?scanModel=f32
+    f32: './assets/models/mobilenet_v2_100_224/model.json'
+  };
 
   function loadModel(onStatus) {
     if (onStatus) onStatus('Preparing camera...');
+    var variant = 'f16';
+    try {
+      if (new URLSearchParams(global.location.search).get('scanModel') === 'f32') variant = 'f32';
+    } catch (e) { /* default */ }
     return global.tf.ready().then(function () {
+      console.log('[shark-embedding-detector] MobileNet ' + variant + ' (' + LOCAL_MODELS[variant] + ')');
       return global.mobilenet.load({
-        version: 2, alpha: 1.0, modelUrl: LOCAL_MODEL_URL, inputRange: [0, 1]
+        version: 2, alpha: 1.0, modelUrl: LOCAL_MODELS[variant], inputRange: [0, 1]
       }).catch(function (err) {
         console.warn('[shark-embedding-detector] local MobileNet failed, trying TF Hub', err);
         return global.mobilenet.load({ version: 2, alpha: 1.0 });

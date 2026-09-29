@@ -79,6 +79,13 @@ city-project/
 - **All processing is client-side** — no backend, no analytics, no PII collected.
 - **GPS checkpoint radius:** 50 meters; Haversine formula in `shared-gps-tracking.js`.
 - **Shark AI detection threshold:** cosine similarity ≥ 0.45 (`visionThreshold` in `shark-detector.js`; `&visionThreshold=` on site) against pre-computed MobileNet embeddings in `data/shark-embeddings-browser.json`.
+- **Scan model:** the app loads `assets/models/mobilenet_v2_100_224_f16/` — the same weights stored as
+  float16 (7 MB instead of 14; TF.js decodes to float32 on load). Checked against full precision:
+  embeddings cos ≥ 0.9997, same best match, scores within ±0.003. `?scanModel=f32` loads the
+  full-precision copy for comparing on site. Regenerate with `node tools/model-to-f16.mjs <src> <dst>` if the
+  model ever changes (new directory name each time — a phone can cache model.json and shards
+  separately for 10 min). `data/shark-embeddings-browser.json` values are rounded to 7 significant
+  digits (float32 precision; 0.5 MB gzipped instead of 1).
 - **MobileNet weights are self-hosted** in `assets/models/mobilenet_v2_100_224/` — byte-for-byte the TF Hub `mobilenet_v2_100_224/classification/2` files (TF Hub now serves them via Kaggle redirects; it's kept as the fallback). Load with `inputRange: [0, 1]`: with a `modelUrl` the package otherwise assumes [-1, 1] and every embedding drifts off the enrolled set. Verified identical embeddings (cos 1.0, max diff 0) against the Hub model.
 - **Selfie AR shoulder target:** MediaPipe landmark 12 (right shoulder), offset X+50px / Y-70px.
 - **8th Wall Wayfinding cycle (June 10 redline):** Maria + Jimmy alternating swim-throughs on camera detection of the painted sharks; ground-tap "drops" a stationary looping Jimmy, or — near a location — whatever is picked in the drop bar. Nothing is placed automatically from GPS (Sept 28).

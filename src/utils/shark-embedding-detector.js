@@ -203,10 +203,27 @@
       });
   }
 
+  /**
+   * The same MobileNet v2 (alpha 1.0) files TF Hub serves, from our own origin.
+   * TF Hub now reaches them through two redirects per file (Kaggle, then signed
+   * Cloud Storage URLs); scanning is the core of the walk and shouldn't depend
+   * on that chain staying up. TF Hub remains the fallback.
+   *
+   * inputRange must stay [0, 1]: that's the Hub model's range, but given a
+   * modelUrl the package assumes [-1, 1], which would shift every embedding
+   * away from the enrolled ones and quietly stop all matches.
+   */
+  var LOCAL_MODEL_URL = './assets/models/mobilenet_v2_100_224/model.json';
+
   function loadModel(onStatus) {
     if (onStatus) onStatus('Preparing camera...');
     return global.tf.ready().then(function () {
-      return global.mobilenet.load({ version: 2, alpha: 1.0 });
+      return global.mobilenet.load({
+        version: 2, alpha: 1.0, modelUrl: LOCAL_MODEL_URL, inputRange: [0, 1]
+      }).catch(function (err) {
+        console.warn('[shark-embedding-detector] local MobileNet failed, trying TF Hub', err);
+        return global.mobilenet.load({ version: 2, alpha: 1.0 });
+      });
     });
   }
 

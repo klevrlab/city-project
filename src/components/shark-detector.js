@@ -37,7 +37,9 @@ AFRAME.registerComponent('shark-detector', {
     // buys real headroom without reaching down to arbitrary street content.
     visionThreshold: { type: 'number', default: 0.45 },
     visionConfidence: { type: 'number', default: 0.4 },
-    visionCooldownMs: { type: 'number', default: 3000 },
+    // Pause after each swim-through before scanning again, so a visitor still
+    // pointing at the same painting gets the next shark after a beat, not at once.
+    visionCooldownMs: { type: 'number', default: 5000 },
     // Little Italy "always-on" bounding box (West / East corners from the task spec).
     littleItalyWestLat: { type: 'number', default: 37.334778 },
     littleItalyWestLng: { type: 'number', default: -121.899222 },
@@ -89,6 +91,9 @@ AFRAME.registerComponent('shark-detector', {
     this.el.sceneEl.addEventListener('dismissSharkUi', () => {
       this.dismissShark();
     });
+
+    // The swim-through for the last match is over (shark-animator): scan again.
+    this.el.sceneEl.addEventListener('sharkSwimDone', () => this.rearm());
   },
 
   waitForReality: function() {
@@ -180,6 +185,9 @@ AFRAME.registerComponent('shark-detector', {
     if (!this.vision.enabled || !this.vision.video) return false;
     if (document.hidden) return false;
     if (this.state.sharkVisible) return false;
+    // A party is the heaviest thing the page draws; give it the whole phone.
+    if (window.SharksWayDrops && window.SharksWayDrops.partyActive &&
+        window.SharksWayDrops.partyActive()) return false;
     if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return false;
     if (performance.now() - this.state.dismissedAt < this.data.visionCooldownMs) return false;
     return true;
@@ -333,6 +341,18 @@ AFRAME.registerComponent('shark-detector', {
     
     this.el.sceneEl.emit('sharkFound', detail || { trigger: 'manual', pingCount: this.state.gpsPingCount });
     if (window.AudioUtils) window.AudioUtils.playSound('found');
+  },
+
+  /** Ready for the next painted shark, without hiding anything on screen. */
+  rearm: function () {
+    this.state.sharkVisible = false;
+    this.state.dismissedAt = performance.now();
+    // Forget the frames that produced the last match, so the cooldown ends on
+    // what the camera sees now rather than on a stale high score.
+    if (this.vision.embeddings && this.vision.embeddings.recentScores) {
+      this.vision.embeddings.recentScores.length = 0;
+    }
+    if (this.vision.status.indexOf('match') === 0) this.vision.status = 'watching';
   },
 
   dismissShark: function () {

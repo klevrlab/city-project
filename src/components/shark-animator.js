@@ -173,6 +173,21 @@ AFRAME.registerComponent('shark-animator', {
     if (this.targetMarker) this.targetMarker.setAttribute('position', '0 -1000 0');
   },
 
+  /**
+   * One swim-through per detection, then hand scanning back.
+   *
+   * This used to queue the next shark straight away, forever: after the first
+   * painted shark was recognised, Maria and Jimmy alternated every ~10 s for
+   * the rest of the visit while the detector — still marked "shark visible" —
+   * never scanned again. Field log, Sept 29: two dozen swim-throughs from a
+   * single match, marked "Not auto scanning". Now each match (or Summon) gets
+   * one shark, and the next scan brings the other one.
+   */
+  finishSwim: function () {
+    this.stopCycle();
+    this.el.sceneEl.emit('sharkSwimDone');
+  },
+
   spawnAtTarget: function (targetPoint) {
     if (!targetPoint) return;
     this.currentTarget = targetPoint.clone ? targetPoint.clone() : new THREE.Vector3(targetPoint.x, targetPoint.y, targetPoint.z);
@@ -204,6 +219,9 @@ AFRAME.registerComponent('shark-animator', {
     if (window.SharksWayLog) window.SharksWayLog.add('drop', 'shark (looping Jimmy)');
     this.stopCycle();          // clear any active swim-through + its timers
     this.isRunning = false;    // dropped shark is standalone, not part of the cycle
+    // A swim-through cut short by the drop never reaches finishSwim, so hand
+    // scanning back here or it stays paused.
+    this.el.sceneEl.emit('sharkSwimDone');
 
     const root = document.getElementById('shark-root');
     if (root) root.setAttribute('visible', 'true');
@@ -299,7 +317,7 @@ AFRAME.registerComponent('shark-animator', {
 
     ent.addEventListener('model-error', () => {
       console.warn('Failed to load shark experience model:', experience.model);
-      this.queue(() => this.cycleNext(targetPoint), 500);
+      this.queue(() => this.finishSwim(), 500);
     }, { once: true });
 
     ent.setAttribute('gltf-model', experience.model);
@@ -375,7 +393,7 @@ AFRAME.registerComponent('shark-animator', {
         });
       }, 1800 + lingerMs);
 
-      this.queue(() => this.cycleNext(targetPoint), 1800 + lingerMs + 1500 + 200);
+      this.queue(() => this.finishSwim(), 1800 + lingerMs + 1500 + 200);
       return;
     }
 
@@ -428,7 +446,7 @@ AFRAME.registerComponent('shark-animator', {
         });
       }, 1800 + lingerMs);
 
-      this.queue(() => this.cycleNext(targetPoint), 1800 + lingerMs + 1500 + 200);
+      this.queue(() => this.finishSwim(), 1800 + lingerMs + 1500 + 200);
       return;
     }
 
@@ -454,7 +472,7 @@ AFRAME.registerComponent('shark-animator', {
         easing: 'easeInOutSine'
       });
 
-      this.queue(() => this.cycleNext(targetPoint), 7000);
+      this.queue(() => this.finishSwim(), 7000);
       return;
     }
 
@@ -543,7 +561,7 @@ AFRAME.registerComponent('shark-animator', {
       });
     }, swimInDur + centerDwellDur);
 
-    this.queue(() => this.cycleNext(targetPoint), swimInDur + centerDwellDur + swimOutDur + 200);
+    this.queue(() => this.finishSwim(), swimInDur + centerDwellDur + swimOutDur + 200);
   },
 
   // Reduces "see-through" face sorting (back of mouth / inner shell drawing on top of

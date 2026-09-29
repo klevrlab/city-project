@@ -267,6 +267,12 @@ Current targets (ceiling ≈ one storey):
 
 Wayfinding swim-through sharks (`shark-animator.js`, ~0.4 scale) are intentionally left as tuned.
 
+**Triangle budget (Sept 29 field log: the SAP party ran at 0–6 fps).** Sharkie (347k tris),
+Sammy (241k), Stella (135k) and the Leaning Tower (244k) were simplified with glTF-Transform +
+meshoptimizer to 69k / 57k / 60k / 60k and re-Draco'd — visually identical at phone scale. A
+party is now ~225k tris instead of ~720k. Re-simplify any re-export of those four the same way.
+The swimmers and jump shark are 15k each and need nothing.
+
 ## Field Log (on-device debugging)
 
 `assets/js/sharks-way-log.js` — a classic script loaded **first** in every page's `<head>` (modules
@@ -316,6 +322,18 @@ you tapped" and carries over to the next drop. `window.SharksWayDebug` exposes t
 operations to the console.
 
 **Facing:** mascots, sharks and Athena all face **+Z** (verified in the desktop sim).
+
+**Drop distances:** taps are pushed out to a minimum distance along the tapped line
+(`MIN_DROP_DISTANCE_M`: tower 12 m, river 8 m, Athena / party 3 m) and pulled in to 25 m. River
+taps aim at the water plane (`RIVER_WATER_Y_M`, default −4 m below the pavement), not the ground.
+
+**GPU memory:** `src/components/gltf-dispose.js` patches A-Frame's `gltf-model` to free geometry,
+textures and skeletons on remove. Without it every swim-through and drop leaked, and long field
+sessions froze. `shared-gltf` instances are not disposed (shared master).
+
+**Scanning:** one swim-through per recognised painting (or Summon); then `sharkSwimDone` re-arms
+the detector after a 5 s cooldown. It used to loop Maria/Jimmy forever and never scan again.
+Scanning pauses while a party is running.
 
 **Rigged models:** `model-normalize` poses the skeleton before measuring. Without that, three's
 cached skinned bounding box is computed before the first pose and the "normalized" size is

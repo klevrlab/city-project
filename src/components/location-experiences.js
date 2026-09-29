@@ -64,10 +64,13 @@ const TOWER_MIRROR_X = true;
 /**
  * Height of the river's surface relative to the ground the visitor stands on.
  * AR's ground plane is the pavement under the phone, so from the bridge the
- * water is some metres *below* it. Unmeasured — override on site with
- * `&waterY=-3` and write the number back here.
+ * water is some metres *below* it. At 0, a tap aimed at the water met the
+ * virtual pavement 1–3 m away (Sept 29 log: drops at 1.2, 2.3, 2.9 m) and the
+ * jump arced over the visitor's head — "river jump too high". −4 m is an
+ * estimate for the bridge deck; override on site with `&waterY=-5` and write
+ * the number that looks right back here.
  */
-const RIVER_WATER_Y_M = 0;
+const RIVER_WATER_Y_M = -4;
 
 /**
  * SAP party: "User is in 'center' of party". The June spec's 30 m finale ring
@@ -83,6 +86,14 @@ const STATUE_MAX_TEXTURE_PX = 1024;
 
 /** A tap this far out still lands, but pulled in — far drops are tiny and drift. */
 const MAX_DROP_DISTANCE_M = 25;
+
+/**
+ * …and a tap this close is pushed out along the same line. Taps near the
+ * bottom of the screen, or with the phone tilted down, hit the ground right at
+ * the visitor's feet: the Sept 29 log has the 8 m tower dropped 0.4–1.5 m away,
+ * which puts the visitor inside it ("Leaning tower placed in air").
+ */
+const MIN_DROP_DISTANCE_M = { athena: 3, tower: 12, river: 8, party: 3 };
 
 /**
  * Where each drop is offered. Coordinates from Rhonda's Sept 28 notes; the
@@ -185,7 +196,8 @@ AFRAME.registerComponent('location-experiences', {
       available: () => this.available.slice(),
       select: (id) => this.select(id),
       dropAhead: (id, distanceM) => this.dropAhead(id || this.selected, distanceM),
-      clear: () => this.clearAll()
+      clear: () => this.clearAll(),
+      partyActive: () => !!document.querySelector('[data-drop-root="party"]')
     };
 
     this.startGpsWhenReady();
@@ -389,21 +401,47 @@ AFRAME.registerComponent('location-experiences', {
     if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return;
     // 'shark' is shark-animator's drop; it reads SharksWayDrops.selected().
     if (this.selected === 'shark') return;
-    const pt = e.detail && e.detail.intersection && e.detail.intersection.point;
+    let pt = e.detail && e.detail.intersection && e.detail.intersection.point;
     if (!pt) return;
-    this.drop(this.selected, this.clampDrop(pt));
+    if (this.selected === 'river') pt = this.onWater(pt);
+    this.drop(this.selected, this.clampDrop(pt, this.selected));
   },
 
-  /** Pull a far tap in along the same line — a 60 m drop is a speck that drifts. */
-  clampDrop: function (point) {
+  /**
+   * Where the tap's line of sight meets the water, not the pavement. The water
+   * is below the ground plane, so the tap ray crosses y=0 well short of it.
+   */
+  onWater: function (groundPoint) {
     const cam = document.getElementById('camera');
-    if (!cam) return point.clone();
+    const y = this.riverWaterY;
+    if (!cam || !(y < 0)) return groundPoint;
+    const c = cam.object3D.getWorldPosition(new THREE.Vector3());
+    const d = new THREE.Vector3().subVectors(groundPoint, c);
+    if (d.y >= -1e-3) return groundPoint;
+    return c.addScaledVector(d, (y - c.y) / d.y);
+  },
+
+  /**
+   * Keep a drop between its minimum distance and MAX_DROP_DISTANCE_M from the
+   * visitor, along the line they tapped. Returns a ground-level point.
+   */
+  clampDrop: function (point, id) {
+    const cam = document.getElementById('camera');
+    if (!cam) return new THREE.Vector3(point.x, 0, point.z);
     const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
     const flat = new THREE.Vector3(point.x - origin.x, 0, point.z - origin.z);
     const d = flat.length();
-    if (d <= MAX_DROP_DISTANCE_M) return new THREE.Vector3(point.x, 0, point.z);
-    flat.multiplyScalar(MAX_DROP_DISTANCE_M / d);
-    return new THREE.Vector3(origin.x + flat.x, 0, origin.z + flat.z);
+    const min = MIN_DROP_DISTANCE_M[id] || 0;
+    let target = Math.min(Math.max(d, min), MAX_DROP_DISTANCE_M);
+    if (d < 0.01) {
+      // Straight down at the feet: go the way the visitor is facing.
+      if (window.MathUtils) window.MathUtils.cameraForward(cam, flat);
+      else flat.set(0, 0, -1);
+      target = Math.max(min, 0);
+    } else {
+      flat.divideScalar(d);
+    }
+    return new THREE.Vector3(origin.x + flat.x * target, 0, origin.z + flat.z * target);
   },
 
   /** Drop at a point straight ahead — for the debug panel and console. */
@@ -412,7 +450,7 @@ AFRAME.registerComponent('location-experiences', {
     if (!cam || !window.MathUtils) return false;
     const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
     const fwd = window.MathUtils.cameraForward(cam);
-    const d = distanceM || (id === 'tower' ? 14 : id === 'river' ? 9 : 5);
+    const d = distanceM || (id === 'tower' ? 14 : id === 'river' ? 10 : 5);
     this.drop(id, new THREE.Vector3(origin.x + fwd.x * d, 0, origin.z + fwd.z * d));
     return true;
   },
@@ -671,7 +709,8 @@ AFRAME.registerComponent('location-experiences', {
     this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false`);
     ent.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true');
     ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M });
-    ent.setAttribute('shadow', 'cast: true');
+    // A shadow belongs on the water, not on the pavement plane metres above it.
+    if (!(waterY < 0)) ent.setAttribute('shadow', 'cast: true');
     root.appendChild(ent);
     this.el.appendChild(root);
 
@@ -735,7 +774,9 @@ AFRAME.registerComponent('location-experiences', {
       ent.setAttribute('gltf-model', s.model);
       this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false`);
       ent.setAttribute('animation-mixer', 'loop: repeat; timeScale: 1.0');
-      ent.setAttribute('shadow', 'cast: true');
+      // No shadows for the ring: at 1.6 m up and 8 m out they're barely seen,
+      // and every caster is drawn a second time into the shadow map — the
+      // party ran at 0–6 fps on site (Sept 29 log).
       // Spread around the ring so one is always in view wherever you look.
       ent.setAttribute('shark-circle-swim', {
         radius: PARTY_CIRCLE_RADIUS_M + s.lane,

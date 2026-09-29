@@ -170,8 +170,14 @@ frames; this is the same idea in code, which keeps radius, speed and phase tunab
   its bones carry the whole breach (~18 m forward, ~2.7 m up once sized). Reads the `spine`
   track and shifts the mesh so the apex sits on the entity origin and the swim line at y=0.
   Never put this model under `shark-arc-jump` — the two paths stack and the shark leaves frame
-  (the Sept 28 "I see the shadow but not the shark" bug). River water height: `RIVER_WATER_Y_M`
-  in `location-experiences.js`, or `&waterY=-3` on site.
+  (the Sept 28 "I see the shadow but not the shark" bug). The water is the floor the visitor taps
+  (`RIVER_WATER_Y_M` = 0; `&waterY=-3` only for experiments).
+  **Sizing is deliberately conservative** (every field test said "too high"): the clip turns the
+  shark near-vertical at the top, so its *length* sets how high it reaches — 2 m long
+  (`JUMP_SHARK_MAX_DIM_M`), body centre peaking 0.7 m up (`JUMP_APEX_HEIGHT_M`), ~10 m run
+  (`JUMP_RUN_M`, scaled separately from height). Measured: highest point 1.35 m, below eye level.
+  **Frustum culling is off for this mesh** — three culls rigged meshes by bind-pose bounds, and
+  this clip carries the body far from them, so the shark vanished mid-breach while the splash drew.
 
 Both drive the entity's local transform, so the parent is the frame of reference — under a geo root
 (−Z north, +X east) the bearings are real. Spec bearings: underpass east→west, river south→north,
@@ -324,8 +330,7 @@ operations to the console.
 **Facing:** mascots, sharks and Athena all face **+Z** (verified in the desktop sim).
 
 **Drop distances:** taps are pushed out to a minimum distance along the tapped line
-(`MIN_DROP_DISTANCE_M`: tower 12 m, river 8 m, Athena / party 3 m) and pulled in to 25 m. River
-taps aim at the water plane (`RIVER_WATER_Y_M`, default −4 m below the pavement), not the ground.
+(`MIN_DROP_DISTANCE_M`: tower 12 m, river 8 m, Athena / party 3 m) and pulled in to 25 m.
 
 **GPU memory:** `src/components/gltf-dispose.js` patches A-Frame's `gltf-model` to free geometry,
 textures and skeletons on remove. Without it every swim-through and drop leaked, and long field

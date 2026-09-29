@@ -195,6 +195,9 @@ AFRAME.registerComponent('dive-clip', {
   schema: {
     bone: { type: 'string', default: 'spine' },
     apexHeightM: { type: 'number', default: 2.2 },  // 0 keeps the baked height
+    // Ground covered from the first keyframe to the last. 0 scales it with the
+    // height; set it to keep a low hop from turning into a slow crawl.
+    runM: { type: 'number', default: 0 },
     splashAboveM: { type: 'number', default: 0.5 }  // counts as airborne above this
   },
 
@@ -233,8 +236,20 @@ AFRAME.registerComponent('dive-clip', {
     mesh.position.z -= apex.z;
     mesh.position.y -= start.y;
 
+    // Always draw it. three decides whether a rigged mesh is on screen from its
+    // bind-pose bounds, but this clip carries the body far from the bind pose
+    // (and the path scaling above moves the mesh the other way), so mid-breach
+    // the shark was culled as "off screen" while its splash rings drew — the
+    // desktop sim shows it swim in and vanish the moment it leaves the water.
+    // Very likely the field reports of "can't see it, just the shadow".
+    mesh.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+
     const rise = apex.y - start.y;
     this.pathScale = this.data.apexHeightM > 0 && rise > 0.01 ? this.data.apexHeightM / rise : 1;
+    // Horizontal scale, separately: first-to-last keyframe along the ground.
+    const end = toLocal(v.length - 3);
+    const run = Math.hypot(end.x - start.x, end.z - start.z);
+    this.runScale = this.data.runM > 0 && run > 0.01 ? this.data.runM / run : this.pathScale;
     this.base = mesh.position.clone();
     this.mesh = mesh;
     this.bone = bone;
@@ -250,9 +265,10 @@ AFRAME.registerComponent('dive-clip', {
     this.mesh.position.copy(this.base);
     obj.updateMatrixWorld(true);
     const raw = obj.worldToLocal(this.bone.getWorldPosition(this.tmp));
-    const k = this.pathScale - 1;
-    this.mesh.position.set(this.base.x + raw.x * k, this.base.y + raw.y * k, this.base.z + raw.z * k);
-    const local = raw.multiplyScalar(this.pathScale);
+    const kh = this.runScale - 1;
+    const kv = this.pathScale - 1;
+    this.mesh.position.set(this.base.x + raw.x * kh, this.base.y + raw.y * kv, this.base.z + raw.z * kh);
+    const local = raw.set(raw.x * this.runScale, raw.y * this.pathScale, raw.z * this.runScale);
     const up = this.data.splashAboveM;
 
     let type = null;

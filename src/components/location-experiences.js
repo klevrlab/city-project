@@ -39,7 +39,18 @@ const STATUE_HEIGHT_M = 2.5;   // marble statue — taller than a person, under 
 const MASCOT_HEIGHT_M = 1.9;   // Sharkie / Sammy — person-scale. Keep in step with sharks-way-modes.js.
 const SHARK_MAX_DIM_M = 3.0;   // sharks are long and low, so pin the longest axis
 const TOWER_HEIGHT_M = 8;      // the June 10 redline's 8 m / 26 ft replica
-const JUMP_APEX_HEIGHT_M = 2.2; // top of the breach above the water — clears a 3 m shark, stays in frame
+/**
+ * The jump, sized conservatively: every field test reported it too high to see
+ * (Sept 28, Sept 29). The clip turns the shark almost vertical at the top of
+ * the breach, so its *length* sets how high it reaches, not the apex: at 3 m
+ * long the nose reached ~1.9–2.0 m whatever the apex. At 2 m long — close to
+ * the ~1.5 m wayfinding swimmers — with the body's centre peaking 0.7 m up,
+ * the desktop sim measures the nose at ~1.6 m (eye level for a phone held
+ * level) and the tail just clearing the floor.
+ */
+const JUMP_SHARK_MAX_DIM_M = 2.0;
+const JUMP_APEX_HEIGHT_M = 0.7;
+const JUMP_RUN_M = 10;          // swim in, breach, swim off: ~10 m across the view
 
 /**
  * How close counts as "near" a location. Downtown GPS wanders 5–15 m, so this
@@ -63,14 +74,13 @@ const TOWER_MIRROR_X = true;
 
 /**
  * Height of the river's surface relative to the ground the visitor stands on.
- * AR's ground plane is the pavement under the phone, so from the bridge the
- * water is some metres *below* it. At 0, a tap aimed at the water met the
- * virtual pavement 1–3 m away (Sept 29 log: drops at 1.2, 2.3, 2.9 m) and the
- * jump arced over the visitor's head — "river jump too high". −4 m is an
- * estimate for the bridge deck; override on site with `&waterY=-5` and write
- * the number that looks right back here.
+ * The jump treats the ground they tap as the water: the shark breaches out of
+ * the floor where they tapped, no guess at how far below the bridge the real
+ * river is. (Sept 29 log: taps landed 1.2–2.9 m out and the jump cleared the
+ * visitor's head; MIN_DROP_DISTANCE_M and JUMP_APEX_HEIGHT_M handle that.)
+ * `&waterY=-3` still drops the water plane for experimenting on site.
  */
-const RIVER_WATER_Y_M = -4;
+const RIVER_WATER_Y_M = 0;
 
 /**
  * SAP party: "User is in 'center' of party". The June spec's 30 m finale ring
@@ -687,7 +697,7 @@ AFRAME.registerComponent('location-experiences', {
    * 12.6 m and runs 85 m, and it used to loop underneath a second, code-driven
    * arc — "I can see the shadow but not the shark". dive-clip (shark-motion.js)
    * now puts the apex on the tap, the water line at `waterY`, and scales the
-   * path to JUMP_APEX_HEIGHT_M (which makes the run ~15 m).
+   * path to JUMP_APEX_HEIGHT_M high and JUMP_RUN_M long.
    */
   playJump: function (point, waterY) {
     if (this.jumpBusy) return;
@@ -706,9 +716,9 @@ AFRAME.registerComponent('location-experiences', {
 
     const ent = document.createElement('a-entity');
     ent.setAttribute('gltf-model', '#diving-shark');
-    this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false`);
+    this.sizeTo(ent, `maxDim: ${JUMP_SHARK_MAX_DIM_M}; ground: false`);
     ent.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true');
-    ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M });
+    ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M, runM: JUMP_RUN_M });
     // A shadow belongs on the water, not on the pavement plane metres above it.
     if (!(waterY < 0)) ent.setAttribute('shadow', 'cast: true');
     root.appendChild(ent);

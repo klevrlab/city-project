@@ -100,13 +100,21 @@ city-project/
 Only the wayfinding swimmers (Maria, Jimmy) are `<a-asset-item>`s in `shark-ar-8thwall.html`.
 Everything else (Photo Mode mascots, Athena, tower, jump shark, Stella) is registered in
 `src/utils/model-assets.js` and fetched when GPS puts the visitor near the location that uses it
-(or Photo Mode opens); call `ensureModel(id)` before setting `gltf-model="#id"`. Startup download
-went from ~57 MB to ~6 MB.
+(or Photo Mode opens); call `ensureModel(id)` before setting `gltf-model="#id"`. Startup model
+download went from ~57 MB to ~0.84 MB (lazy loading, then Draco on the two swimmers).
 
 Optimized GLBs (originals in git history): Athena textures resized to 1024
 (`npx @gltf-transform/cli resize in.glb out.glb --width 1024 --height 1024`); tower and Stella
 Draco-compressed (`npx @gltf-transform/cli draco in.glb out.glb`); Sharkie's 3000 px textures
-capped at 2048 (root and `assets/` copies are the same file). **`resize` drops Draco on write** —
+capped at 2048 (root and `assets/` copies are the same file); swimmers Draco-compressed and Jimmy's
+PNG texture converted to JPEG (`jpeg --formats png`) — Jimmy 3.82 → 0.43 MB, Maria 2.34 → 0.41 MB.
+
+**Draco decoder is vendored** in `assets/vendor/draco/` (1.5.6, the version A-Frame loads by default)
+and wired via `gltf-model="dracoDecoderPath: ./assets/vendor/draco/"` on the `<a-scene>` and
+`window.ModelViewerElement.dracoDecoderLocation` for the selfie's model-viewer — which must be the
+*global config object set before the library loads*; the class's static setter is reset by every
+new `<model-viewer>`. With the swimmers compressed, decoding is on the startup path, so it must not
+depend on gstatic. **`resize` drops Draco on write** —
 run `draco` again afterwards on a file that had it, or a 3.6 MB Sharkie becomes 17.8 MB. Re-run
 after any re-export from Blender.
 

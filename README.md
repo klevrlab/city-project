@@ -86,7 +86,7 @@ Swipe-to-kick soccer mini-game with a procedural net, post/crossbar bounce, and 
 - **HTTPS:** Required for camera and GPS access
 - **Browser:** iOS Safari 13+ or Android Chrome 80+
 - **Permissions:** Camera and location access
-- **Network:** the wayfinding sharks (~6 MB) load at start; each location's models download as the visitor approaches it
+- **Network:** the wayfinding sharks (under 1 MB) and the scan model (~14 MB) load at start; each location's models download as the visitor approaches it
 
 ## Project Structure
 

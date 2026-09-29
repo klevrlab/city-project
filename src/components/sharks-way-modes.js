@@ -390,6 +390,14 @@ async function ensureSelfieScripts() {
 
   state.selfie.scriptsLoading = (async () => {
     // model-viewer as module
+    // Sharkie and Sammy are Draco-compressed; decode with the same vendored
+    // decoder as the scene instead of model-viewer's default (gstatic). This
+    // has to be the global config object, set before the library loads: every
+    // <model-viewer> constructor re-applies it (or the gstatic default), so the
+    // class's static setter gets undone by the next element.
+    window.ModelViewerElement = Object.assign(window.ModelViewerElement || {}, {
+      dracoDecoderLocation: new URL('./assets/vendor/draco/', window.location.href).href
+    });
     if (!customElements.get('model-viewer')) {
       await import('https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js');
     }

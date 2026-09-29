@@ -38,7 +38,8 @@ button.sw-mode-btn.active {
   color: #00A9E0;
 }
 
-#photo-mode-bar {
+#photo-mode-bar,
+#drop-bar {
   position: fixed;
   left: 50%;
   bottom: 24px;
@@ -54,8 +55,20 @@ button.sw-mode-btn.active {
   backdrop-filter: blur(12px);
 }
 
-#photo-mode-bar.visible {
+#photo-mode-bar.visible,
+#drop-bar.visible {
   display: flex;
+}
+
+/* Wayfinding drop picker: Shark + whatever the current location adds. */
+#drop-bar {
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+
+#drop-bar .sw-chip {
+  white-space: nowrap;
 }
 
 .sw-chip {
@@ -103,7 +116,7 @@ button.sw-mode-btn.active {
 #toast {
   position: fixed;
   left: 50%;
-  bottom: 88px;
+  bottom: 196px;
   transform: translateX(-50%) translateY(12px);
   z-index: 1100;
   background: rgba(0, 22, 26, 0.88);
@@ -168,9 +181,10 @@ button.sw-mode-btn.active {
   visibility: visible;
 }
 
+/* Bottom, not top: at the top it covered the visitor's face. */
 #sw-selfie-hint {
   position: fixed;
-  top: 72px;
+  bottom: 140px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 970;

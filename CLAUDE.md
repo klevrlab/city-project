@@ -80,13 +80,14 @@ city-project/
 - **GPS checkpoint radius:** 50 meters; Haversine formula in `shared-gps-tracking.js`.
 - **Shark AI detection threshold:** cosine similarity ≥ 0.55 against pre-computed MobileNet embeddings in `data/shark-embeddings-browser.json`.
 - **Selfie AR shoulder target:** MediaPipe landmark 12 (right shoulder), offset X+50px / Y-70px.
-- **8th Wall Wayfinding cycle (June 10 redline):** Maria + Jimmy alternating swim-throughs on GPS detection; ground-tap "drops" a stationary looping Jimmy. (Little Italy is slated to swap its always-on shark rotation for always-on marble statues pointing toward SAP — blocked on Athena / Augustus GLB assets.)
+- **8th Wall Wayfinding cycle (June 10 redline):** Maria + Jimmy alternating swim-throughs on camera detection of the painted sharks; ground-tap "drops" a stationary looping Jimmy, or — near a location — whatever is picked in the drop bar. Nothing is placed automatically from GPS (Sept 28).
 - **HTTPS required** for camera and GPS (use localtunnel or ngrok for mobile testing).
 
 ## AR Experiences
 
 1. ~~**sharks-way.html** — TF.js + MobileNet AI shark painting detection~~ — **retired**; the MobileNet page now redirects to `shark-ar-8thwall.html` (the public `sharks-way.html` URL is preserved for the SJSU landing-page link).
-2. **shark-ar-8thwall.html** — 8th Wall GPS-triggered Wayfinding cycle. Per the **June 10, 2026 redline**, the cycle is **Maria + Jimmy only**, appearing alternately on detection (approach from behind → pause → swim off, no tap). Tapping the ground "drops a shark" — a single Jimmy that loops in place and stays so visitors can walk around it. Stella, Sharkie Waving, and the Diving Shark were removed from this cycle (Sharkie → selfie feature; Diving → future jump locations; Stella → retired).
+2. **shark-ar-8thwall.html** — 8th Wall Wayfinding. Per the **June 10, 2026 redline**, the cycle is **Maria + Jimmy only**, appearing alternately when the camera recognises a painted shark (approach from behind → pause → swim off, no tap). Tapping the ground "drops a shark" — a single Jimmy that loops in place and stays so visitors can walk around it. Stella, Sharkie Waving, and the Diving Shark were removed from this cycle (Sharkie → selfie feature; Diving → jump drops; Stella → retired).
+   **Sept 28 "final touches" (Rhonda): no more automatic location-based placements.** GPS no longer spawns or plants anything; scanning works everywhere (it used to be switched off in Little Italy). GPS only decides which extra *tap-to-drop* options the bottom drop bar offers (`src/components/location-experiences.js`, 75 m radius): Little Italy → Athena + Leaning Tower, Guadalupe River → river jump, SAP Center → "Drop a Party" (dancing mascots at the tap, a pod of sharks circling the visitor at 8 m, a jumping shark). Drops land where the visitor taps — no compass involved.
 3. **location-tour.html** — Leaflet.js GPS checkpoint tour along the corridor
 4. **selfie-ar.html** — MediaPipe shoulder-mount selfie with Sammy Spartan / Sharkie
 5. **mural-ar.html** — Japantown Living Mural: open-source MindAR image tracking + GPS gate (single compiled target — the front relief — in `assets/targets/japan-am.mind`; multiple similar bronze panels cross-matched and caused phantom locks). Loads a **custom loose-threshold MindAR build** (`assets/vendor/mindar-image-aframe.custom.js`, rebuilt via `npm run build-tracker` in `tools/mind-compile/`) — detection/tracking confidence gates are deliberately permissive ("always shows something" > "always the right panel"), and `mural-plane.js` holds the last pose for 2.5s after tracking drops.
@@ -126,7 +127,13 @@ frames; this is the same idea in code, which keeps radius, speed and phase tunab
   frames" trick), `height`, bob and bank. Finale uses 30 m radius / 60 s laps, two sharks 180° apart.
 - `shark-arc-jump` — one breach: swims in along a **compass bearing** at water level, arcs up,
   lands, keeps going. Emits `shark-breach-exit` / `shark-breach-entry` for the splash (Rhonda's
-  splash model is still TBD, so those fire the existing placeholder).
+  splash model is still TBD, so those fire the existing placeholder). Currently unused.
+- `dive-clip` — for `maria-shark-jump-jimmy-txtr.glb`, which is **not** an in-place swim cycle:
+  its bones carry the whole breach (~18 m forward, ~2.7 m up once sized). Reads the `spine`
+  track and shifts the mesh so the apex sits on the entity origin and the swim line at y=0.
+  Never put this model under `shark-arc-jump` — the two paths stack and the shark leaves frame
+  (the Sept 28 "I see the shadow but not the shark" bug). River water height: `RIVER_WATER_Y_M`
+  in `location-experiences.js`, or `&waterY=-3` on site.
 
 Both drive the entity's local transform, so the parent is the frame of reference — under a geo root
 (−Z north, +X east) the bearings are real. Spec bearings: underpass east→west, river south→north,
@@ -140,7 +147,11 @@ circle", read as diameter) and `FINALE_CIRCLE_PERIOD_MS` in `location-experience
 
 ## Geo Anchoring
 
-Little Italy statues and the tower are placed at their **real coordinates** (`src/utils/geo-anchor.js`).
+> **Not used for placement since Sept 28.** Rhonda: "No more automatic location based placements
+> (too unreliable)" — everything is tap-to-drop now. `geo-anchor.js` still loads; the notes below
+> describe why compass placement was unreliable, which is the reason not to bring it back.
+
+Little Italy statues and the tower were placed at their **real coordinates** (`src/utils/geo-anchor.js`).
 GPS alone can't do this — it gives position but not facing — so the anchor needs a heading:
 
 ```
@@ -177,8 +188,10 @@ replaces the page with a QR wall. Everything around it is ordinary A-Frame, so
 shark-ar-8thwall.html?desktop=1&debug=1&at=littleitaly
 ```
 
-`at=` accepts `littleitaly | tower | underpass | river | finale`, or pass `&lat=&lng=`. From the
-console: `SimGps.teleport('finale')`, `SimGps.nudge(northM, eastM)`, `SimGps.where()`.
+`at=` accepts `littleitaly | athena | tower | river | sap | underpass`, or pass `&lat=&lng=`. From the
+console: `SimGps.teleport('sap')`, `SimGps.nudge(northM, eastM)`, `SimGps.where()`.
+Drops without tapping: `SharksWayDrops.dropAhead('party')` (`shark | athena | tower | river | party`),
+`SharksWayDrops.clear()`. `&demoLocations=1` offers every drop regardless of GPS.
 
 A laptop has no magnetometer, so the sim also fakes an absolute compass (default 87°, the corridor
 bearing). `&heading=200` starts it wrong on purpose; `SimCompass.set(deg)` moves it — that's how to
@@ -209,9 +222,9 @@ Current targets (ceiling ≈ one storey):
 
 | Content | Size | Why |
 |---|---|---|
-| Little Italy statues (Athena + Augustus) | 2.5 m tall | street statue, above human, under a storey |
-| Sharkie / Sammy (Photo Mode + finale dancers) | 1.9 m tall | person-scale for photos |
-| Finale circle sharks, jump diving shark | 3.0 m longest axis | height is the wrong axis to pin on a shark |
+| Athena (Little Italy tap drop) | 2.5 m tall | street statue, above human, under a storey |
+| Sharkie / Sammy (Photo Mode + party dancers) | 1.9 m tall | person-scale for photos (was briefly 1.425 m; Rhonda found it too small) |
+| Party circle sharks, jump diving shark | 3.0 m longest axis | height is the wrong axis to pin on a shark |
 | Leaning Tower | 8 m tall | deliberate exception — the June 10 redline spec's 8 m |
 
 Wayfinding swim-through sharks (`shark-animator.js`, ~0.4 scale) are intentionally left as tuned.
@@ -230,17 +243,23 @@ tower with no GPS.)
   or arm tap-to-select and tap the model in the camera view.
 - **MOVE** — nudge/rotate/scale in camera-relative axes, drag along the ground, then SAVE.
 
-Saves are keyed by `data-placement-key` (`little-italy/pin-3`, `leaning-tower`,
-`finale/dancer-sammy`, …) and stored by `src/utils/placement-overrides.js`:
+Saves are keyed by `data-placement-key` (`little-italy/athena`, `leaning-tower/drop`,
+`party/dancer-sammy`, …) and stored by `src/utils/placement-overrides.js`:
 
 1. `data/placement-overrides.json` — committed baseline (optional; 404 is fine)
 2. `localStorage['sharksway.placement']` — this device's tuning, wins over the baseline
 
 EXPORT downloads the merged JSON; commit it as `data/placement-overrides.json` to make a tweak
-everyone's. Saved transforms are **local to the plant anchor** (a root entity dropped at the
-camera's ground position and yawed to camera-forward), not world coordinates — content is planted
-relative to the camera when a geofence fires, so absolute world positions would be meaningless on
-the next visit. `window.SharksWayDebug` exposes the same operations to the console.
+everyone's. Saved transforms are **local to the drop root** (an entity at the tap point, turned
+so its +Z faces the visitor), not world coordinates — so a saved tweak is "relative to wherever
+you tapped" and carries over to the next drop. `window.SharksWayDebug` exposes the same
+operations to the console.
+
+**Facing:** mascots, sharks and Athena all face **+Z** (verified in the desktop sim).
+
+**Rigged models:** `model-normalize` poses the skeleton before measuring. Without that, three's
+cached skinned bounding box is computed before the first pose and the "normalized" size is
+wrong — Sharkie at "1.9 m" rendered ~7 m tall, half underground.
 
 ## Development Notes
 

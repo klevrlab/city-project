@@ -172,3 +172,96 @@ AFRAME.registerComponent('shark-arc-jump', {
     obj.rotation.z = Math.sin(this.t * 1.6) * 4 * DEG;
   }
 });
+
+/**
+ * Play a GLB's own baked jump, placed so it lands where you want it.
+ *
+ * maria-shark-jump-jimmy-txtr.glb is not an in-place swim cycle like the other
+ * sharks: its bones carry the whole breach, and the path is huge next to the
+ * body. Measured in the desktop sim with the shark sized to 3 m long, the baked
+ * jump climbs 12.6 m and travels 85 m. Played on loop under shark-arc-jump
+ * (which added its own arc on top), the shark was simply above and beyond the
+ * frame — the river jump's "I see the shadow but not the shark, I think it's
+ * too high".
+ *
+ * This reads the root bone's track from the clip, shifts the mesh so the top of
+ * the jump sits on the entity's origin and the swim line at y=0, then scales
+ * the *path* (not the shark) so the apex is `apexHeightM` above the water.
+ * Put the entity where the apex should be, at water height, turned so local +Z
+ * is the travel direction. Emits `shark-breach-exit` / `shark-breach-entry`
+ * with a world {position} on the water line, for the splash.
+ */
+AFRAME.registerComponent('dive-clip', {
+  schema: {
+    bone: { type: 'string', default: 'spine' },
+    apexHeightM: { type: 'number', default: 2.2 },  // 0 keeps the baked height
+    splashAboveM: { type: 'number', default: 0.5 }  // counts as airborne above this
+  },
+
+  init: function () {
+    this.ready = false;
+    this.airborne = false;
+    this.tmp = new THREE.Vector3();
+    // Measure after model-normalize has scaled the mesh, not before.
+    const evt = this.el.hasAttribute('model-normalize') ? 'model-normalized' : 'model-loaded';
+    this.el.addEventListener(evt, () => this.setup(), { once: true });
+  },
+
+  setup: function () {
+    const mesh = this.el.getObject3D('mesh');
+    if (!mesh) return;
+    const bone = mesh.getObjectByName(this.data.bone);
+    const clip = (mesh.animations || [])[0];
+    const track = clip && clip.tracks.find((t) => t.name === `${this.data.bone}.position`);
+    if (!bone || !track) {
+      console.warn('[dive-clip] no', this.data.bone, 'position track — playing clip unplaced');
+      return;
+    }
+
+    const v = track.values;
+    let apexIdx = 0;
+    for (let i = 3; i < v.length; i += 3) if (v[i + 1] > v[apexIdx + 1]) apexIdx = i;
+
+    this.el.object3D.updateMatrixWorld(true);
+    const parentWorld = bone.parent.matrixWorld;
+    const toLocal = (i) => this.el.object3D.worldToLocal(
+      new THREE.Vector3(v[i], v[i + 1], v[i + 2]).applyMatrix4(parentWorld));
+    const apex = toLocal(apexIdx);
+    const start = toLocal(0);
+
+    mesh.position.x -= apex.x;
+    mesh.position.z -= apex.z;
+    mesh.position.y -= start.y;
+
+    const rise = apex.y - start.y;
+    this.pathScale = this.data.apexHeightM > 0 && rise > 0.01 ? this.data.apexHeightM / rise : 1;
+    this.base = mesh.position.clone();
+    this.mesh = mesh;
+    this.bone = bone;
+    this.ready = true;
+  },
+
+  tick: function () {
+    if (!this.ready) return;
+    const obj = this.el.object3D;
+
+    // Where the clip alone puts the bone this frame, then pull the mesh so the
+    // bone sits at pathScale × that instead. Moving the mesh moves the bone 1:1.
+    this.mesh.position.copy(this.base);
+    obj.updateMatrixWorld(true);
+    const raw = obj.worldToLocal(this.bone.getWorldPosition(this.tmp));
+    const k = this.pathScale - 1;
+    this.mesh.position.set(this.base.x + raw.x * k, this.base.y + raw.y * k, this.base.z + raw.z * k);
+    const local = raw.multiplyScalar(this.pathScale);
+    const up = this.data.splashAboveM;
+
+    let type = null;
+    if (!this.airborne && local.y > up) type = 'shark-breach-exit';
+    else if (this.airborne && local.y < up * 0.5) type = 'shark-breach-entry';
+    if (!type) return;
+
+    this.airborne = !this.airborne;
+    local.y = 0;
+    this.el.emit(type, { position: obj.localToWorld(local).clone() });
+  }
+});

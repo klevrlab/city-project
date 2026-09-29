@@ -1,28 +1,40 @@
 /**
- * June 10 redline — location-based placeholders for Sharks Way Phase II.
+ * Sept 28 "final touches" — location drops are tap-to-place, never automatic.
  *
- * - Little Italy: always-on Athena statues (left/right) at the 8 street pins.
- *   Odd pins use Augustus_of_Prima_Porta.glb (CC-BY Sketchfab / Arqueomodel3D).
- * - Leaning Tower: Leaning_Tower_of_Pisa.glb scaled to 8 m near western corner.
- * - Jump zones: underpass / river / grand finale fire a one-shot dive with
- *   maria-shark-jump-jimmy-txtr.glb (splash TBD — Rhonda). Finale also plants
- *   circle-swim + dancing mascot placeholders.
+ * Rhonda, after the on-site walk: "No More Automatic Location Based Placements
+ * (too unreliable)". Everything this component used to plant on a geofence —
+ * the eight Little Italy statues, the tower, the three jumps, the finale — was
+ * placed from GPS + compass, and downtown GPS (±5–15 m) and phone magnetometers
+ * (±10–20°) put it in the wrong place often enough to read as broken.
  *
- * Statues are planted in world space relative to the camera when the user
- * enters each geofence (SLAM keeps them anchored). Absolute GPS→ENU without a
- * compass lock is unreliable in browser XR, so entry-time local layout is the
- * intentional placeholder strategy.
+ * Now GPS only decides which extra drops are *offered*. The visitor picks one
+ * from the bar at the bottom of the screen and taps the ground, and the content
+ * lands where they tapped. No compass, no coordinates in the placement itself.
+ *
+ *   Anywhere         Shark (the looping Jimmy — shark-animator owns that drop)
+ *   Little Italy     Athena statue, Leaning Tower of Pisa
+ *   Guadalupe River  River jump
+ *   SAP Center       Party: dancing mascots + circling sharks + jumping shark,
+ *                    with the visitor in the middle of the circle
+ *
+ * `?demoLocations=1` (or the desktop sim) offers every drop regardless of GPS.
  */
 /**
- * Real-world sizes, in metres, for everything this component plants. Models are
- * normalized to these on load (see model-normalize.js) — none of the source
- * GLBs share a unit convention, so per-asset scale factors were guesswork.
- * Ceiling is roughly one storey (~3 m); the Leaning Tower is the deliberate
- * exception, spec'd at 8 m in the June 10 redline.
+ * Real-world sizes, in metres. Models are normalized to these on load (see
+ * model-normalize.js) — none of the source GLBs share a unit convention.
  */
-const STATUE_HEIGHT_M = 2.5;   // marble statues — taller than a person, well under a storey
-const MASCOT_HEIGHT_M = 1.425; // Sharkie / Sammy — 25% under person-scale, on site request
+const STATUE_HEIGHT_M = 2.5;   // marble statue — taller than a person, under a storey
+const MASCOT_HEIGHT_M = 1.9;   // Sharkie / Sammy — person-scale. Keep in step with sharks-way-modes.js.
 const SHARK_MAX_DIM_M = 3.0;   // sharks are long and low, so pin the longest axis
+const TOWER_HEIGHT_M = 8;      // the June 10 redline's 8 m / 26 ft replica
+const JUMP_APEX_HEIGHT_M = 2.2; // top of the breach above the water — clears a 3 m shark, stays in frame
+
+/**
+ * How close counts as "near" a location. Downtown GPS wanders 5–15 m, so this
+ * is deliberately generous: a visitor standing at the spot must never be told
+ * it isn't there.
+ */
+const NEAR_RADIUS_M = 75;
 
 /**
  * The Pisa GLB is handed the wrong way round for us, so it gets mirrored on X.
@@ -31,161 +43,96 @@ const SHARK_MAX_DIM_M = 3.0;   // sharks are long and low, so pin the longest ax
 const TOWER_MIRROR_X = true;
 
 /**
- * Measured lean of the GLB: its top sits 6.2 m off its base, toward local +X,
- * which reads as bearing 92° when the entity's yaw is 0. Mirroring on X flips
- * that to 268°. Knowing this lets the tower be aimed at a real bearing instead
- * of hand-turned until it looks right.
+ * Height of the river's surface relative to the ground the visitor stands on.
+ * AR's ground plane is the pavement under the phone, so from the bridge the
+ * water is some metres *below* it. Unmeasured — override on site with
+ * `&waterY=-3` and write the number back here.
  */
-const TOWER_LEAN_LOCAL_DEG = TOWER_MIRROR_X ? 267.6 : 92.4;
+const RIVER_WATER_Y_M = 0;
 
 /**
- * Jump travel bearings, from the per-location descriptions in the notes:
- * underpass "from the east heading west", river "from the south heading north",
- * finale "from the east heading west toward SAP" (that one is recomputed from
- * the pin's real bearing to the arena).
+ * SAP party: "User is in 'center' of party". The June spec's 30 m finale ring
+ * put the sharks so far out they read as specks; around a visitor it has to be
+ * close enough to see and still clear their head.
  */
-const JUMP_BEARINGS = { west: 270, north: 0, east: 90, south: 180 };
+const PARTY_CIRCLE_RADIUS_M = 8;
+const PARTY_CIRCLE_PERIOD_MS = 20000;  // ~2.5 m/s at 8 m
+const PARTY_DURATION_MS = 45000;
 
-/**
- * "Maria & sharks swim in a 60 meter circle around the intersection" — read as
- * 60 m across, so a 30 m radius. Change this one number if it meant radius.
- */
-const FINALE_CIRCLE_RADIUS_M = 30;
-const FINALE_CIRCLE_PERIOD_MS = 60000;  // ~3 m/s at 30 m — an unhurried cruise
-
-/** 'pod' = all three sharks travelling together; 'spread' = evenly spaced. */
-const FINALE_CIRCLE_FORMATION = 'pod';
-
-/**
- * How long to hold out for a compass before placing landmarks the old
- * camera-relative way. Geo placement is much better, but a visitor standing in
- * Little Italy seeing an empty street is worse than seeing content that is
- * oriented off. Long enough that a working magnetometer always wins the race.
- */
-const COMPASS_TIMEOUT_MS = 20000;
-
-/**
- * Little Italy performance budget. Measured before these existed: 8 statues =
- * 2.3M triangles, 36 unique textures, 264 megapixels ≈ 1.34 GB of texture
- * memory, and no geometry shared between instances. That crashed older phones
- * and dragged new ones.
- *
- * 1024 px is generous for a 2.5 m statue on a handset, and 45 m keeps roughly
- * the near half of the 70 m row rendering at any time.
- */
+/** Texture cap for the statue — Athena ships with 4K+ maps that crash older phones. */
 const STATUE_MAX_TEXTURE_PX = 1024;
-const STATUE_CULL_DISTANCE_M = 45;
+
+/** A tap this far out still lands, but pulled in — far drops are tiny and drift. */
+const MAX_DROP_DISTANCE_M = 25;
 
 /**
- * Whether to swap the two Athena files between rows. The filenames are correct
- * as they stand: measured in the geo root's own frame (+X east, −Z north), the
- * point-right GLB carries its arm on local +X and point-left on local −X. The
- * north row faces 177° so +X is west; the south row faces 357° so −X is west.
- * North=right, south=left therefore points both arms toward SAP, exactly as the
- * notes say. Swapping aims both rows east — measured, not guessed.
+ * Where each drop is offered. Coordinates from Rhonda's Sept 28 notes; the
+ * river pin is the June spec's bridge railing.
  */
-const ATHENA_POINT_SWAP = false;
+const LOCATIONS = [
+  {
+    id: 'littleitaly',
+    label: 'Little Italy',
+    pins: [
+      { lat: 37.335333, lng: -121.897389 },   // Athena, near the overpass (37°20'07.2"N 121°53'50.6"W)
+      { lat: 37.335417, lng: -121.897889 }    // Tower, western corner (37°20'07.5"N 121°53'52.4"W)
+    ],
+    drops: ['athena', 'tower']
+  },
+  {
+    id: 'river',
+    label: 'Guadalupe River',
+    pins: [{ lat: 37.334664, lng: -121.899474 }],
+    drops: ['river']
+  },
+  {
+    id: 'sap',
+    label: 'SAP Center',
+    pins: [{ lat: 37.334111, lng: -121.900472 }],   // 37°20'02.8"N 121°54'01.7"W
+    drops: ['party']
+  }
+];
 
-/**
- * Which row's Augustus gets mirrored. He ships as a single model, so his arm
- * sits on local −X for both rows: west on the south row (faces 357°) but east
- * on the north row (faces 177°). Mirroring the north row puts both arms west.
- */
-const AUGUSTUS_MIRROR_SIDE = 'north';
+const DROP_LABELS = {
+  shark: 'Shark',
+  athena: 'Athena',
+  tower: 'Leaning Tower',
+  river: 'River Jump',
+  party: 'Drop a Party'
+};
 
-/**
- * Breach height above the water line. 3.4 m over a 3 m shark read as a mortar
- * launch; this clears the body with room to spare and still looks like a jump.
- */
-const JUMP_APEX_HEIGHT_M = 1.8;
+const DROP_HINTS = {
+  shark: 'Tap the ground to drop a shark',
+  athena: 'Tap the ground to place Athena',
+  tower: 'Tap the ground to place the Leaning Tower',
+  river: 'Aim at the water and tap to make a shark jump',
+  party: 'Tap the ground to drop a party'
+};
 
 AFRAME.registerComponent('location-experiences', {
   schema: {
-    statueRadiusM: { type: 'number', default: 55 },
-    towerRadiusM: { type: 'number', default: 60 },
-    jumpRadiusM: { type: 'number', default: 40 },
-    jumpCooldownMs: { type: 'number', default: 28000 }
+    nearRadiusM: { type: 'number', default: NEAR_RADIUS_M }
   },
 
   init: function () {
     this.watchId = null;
-    this.inLittleItaly = false;
-    this.statueRoot = null;
-    this.towerEl = null;
-    this.jumpBusy = false;
-    this.lastJumpAt = {};
+    this.locations = LOCATIONS;
     this.userLat = null;
     this.userLng = null;
-    this.gpsStarted = false;
+    this.accuracy = null;
+    this.selected = 'shark';
+    this.available = ['shark'];
+    this.nearLabel = null;
+    this.placed = {};          // drop id -> root entity, for drops that stay put
+    this.partyTimer = null;
+    this.jumpBusy = false;
     this.statusEl = null;
+    this.barEl = null;
 
-    // June 10 redline pins — North side points Right/West; South points Left/West.
-    this.statuePins = [
-      { id: 1, lat: 37.335397, lng: -121.897650, side: 'north', odd: true },
-      { id: 2, lat: 37.335416, lng: -121.897383, side: 'north', odd: false },
-      { id: 3, lat: 37.335432, lng: -121.897074, side: 'north', odd: true },
-      { id: 4, lat: 37.335430, lng: -121.896874, side: 'north', odd: false },
-      { id: 5, lat: 37.335226, lng: -121.897639, side: 'south', odd: true },
-      { id: 6, lat: 37.335222, lng: -121.897390, side: 'south', odd: false },
-      { id: 7, lat: 37.335258, lng: -121.897086, side: 'south', odd: true },
-      { id: 8, lat: 37.335275, lng: -121.896868, side: 'south', odd: false }
-    ];
-
-    /**
-     * Corner of Little Italy Way & Sharks Way — the spot Chris pointed at in
-     * Street View, which is the Street View camera position from that link.
-     * The notes say "placed on ground when near 37.335429, -121.897883" and "at
-     * western corner"; that is 12 m north-northeast of here, i.e. the same
-     * corner within GPS error. Height is the notes' 8 m / 26 ft.
-     *
-     * Lean direction is deliberately not corrected — Chris: "you can ignore
-     * where it leans".
-     */
-    this.towerPin = { lat: 37.335323, lng: -121.897912, heightM: 8 };
-
-    this.jumpPins = [
-      {
-        id: 'underpass',
-        lat: 37.335391,
-        lng: -121.896682,
-        label: 'Underpass Jump',
-        heading: 'west'
-      },
-      {
-        id: 'river',
-        lat: 37.334664,
-        lng: -121.899474,
-        label: 'River Jump',
-        heading: 'north'
-      },
-      {
-        id: 'finale',
-        lat: 37.334113,
-        lng: -121.900460,
-        label: 'Grand Finale Jump',
-        heading: 'west',
-        /**
-         * "Swims into frame from the east heading west toward SAP" — but due
-         * west (270°) and the arena's true bearing from here (205°) disagree.
-         * West Saint John Street, the same street the statues are on, runs
-         * 239°/59° through this intersection, so this follows the street
-         * toward SAP rather than flying the shark over the buildings.
-         */
-        bearingDeg: 239,
-        danceCorner: { lat: 37.334118, lng: -121.900262 }
-      }
-    ];
-
-    // Spec Little Italy corridor (also used by shark-detector).
-    this.liWest = { lat: 37.334778, lng: -121.899222 };
-    this.liEast = { lat: 37.335444, lng: -121.896778 };
-
-    // ?demoLocations=1 forces statues + tower in front of camera (no GPS needed).
     const params = new URLSearchParams(window.location.search);
-    this.demoLocations = params.get('demoLocations') === '1' || params.get('demo') === 'locations';
-    // ?geo=0 pins everything to the old camera-relative layout.
-    this.forceCameraRelative = params.get('geo') === '0' || this.demoLocations;
-    this.geoPlaced = false;
+    this.unlockAll = params.get('demoLocations') === '1' || params.get('demo') === 'locations';
+    const waterY = parseFloat(params.get('waterY'));
+    this.riverWaterY = isFinite(waterY) ? waterY : RIVER_WATER_Y_M;
 
     if (this.el.sceneEl.hasLoaded) this.start();
     else this.el.sceneEl.addEventListener('loaded', () => this.start(), { once: true });
@@ -193,102 +140,36 @@ AFRAME.registerComponent('location-experiences', {
 
   start: function () {
     this.ensureStatusUi();
+    this.ensureDropBar();
 
-    // Dev helpers — plant without GPS.
-    window.forceLittleItalyStatues = () => {
-      this.plantStatuesAroundCamera();
-      this.setStatus('Forced: Little Italy statues');
-    };
-    window.forceLeaningTower = () => {
-      this.plantTowerInFront();
-      this.setStatus('Forced: Leaning Tower');
-    };
-    window.forceJumpDemo = (id) => this.playJump(id || 'underpass');
+    const ground = document.getElementById('ground');
+    if (ground) ground.addEventListener('click', (e) => this.onGroundTap(e));
 
-    /** Re-run the plant with the current fix + heading (after calibrating). */
-    window.reanchorLocations = () => {
-      this.clearStatues();
-      this.clearTower();
-      const ok = this.plantStatuesAroundCamera();
-      this.plantTowerInFront();
-      this.setStatus(this.geoPlaced ? 'Re-anchored to GPS coordinates' : 'Re-anchored (camera-relative)');
-      return ok;
+    // Photo / Goalie own the ground tap and the bottom of the screen.
+    window.addEventListener('sharksWayModeChanged', () => this.renderDropBar());
+
+    // Console / debug-panel helpers: drop without GPS or a tap.
+    window.SharksWayDrops = {
+      selected: () => this.selected,
+      available: () => this.available.slice(),
+      select: (id) => this.select(id),
+      dropAhead: (id, distanceM) => this.dropAhead(id || this.selected, distanceM),
+      clear: () => this.clearAll()
     };
 
-    if (window.GeoAnchor) {
-      // Android reports absolute orientation unasked; iOS needs a user gesture,
-      // so ride the visitor's first tap and keep a visible button as backup.
-      window.GeoAnchor.listen();
-      window.GeoAnchor.armAutoRequest();
-      this.ensureCompassPrompt();
-
-      // Landmarks refuse to plant until there's a heading, and a device can sit
-      // inside the geofence with no further GPS callback, so poll: once the
-      // compass settles, drop anything camera-relative and re-run the geofence
-      // with real coordinates.
-      this._geoUpgradeTimer = setInterval(() => {
-        if (this.forceCameraRelative) return clearInterval(this._geoUpgradeTimer);
-        if (this.userLat == null) return;
-
-        if (window.GeoAnchor.stable) {
-          // One re-run is enough: from here a streaming watchPosition retries
-          // any plant that is still missing. Without stopping, standing outside
-          // every geofence would clear and re-run forever.
-          clearInterval(this._geoUpgradeTimer);
-          this.showCompassPrompt(false);
-          console.log('[location-experiences] compass settled — anchoring to GPS coordinates');
-          this.clearStatues();
-          this.clearTower();
-          this.onGps(this.userLat, this.userLng);
-          return;
-        }
-
-        // Still no heading. Ask for it if iOS is holding it back, and if the
-        // wait runs long, show the content anyway — a visitor standing in
-        // Little Italy seeing nothing at all is the worse failure.
-        if (this._waitingForCompassSince) {
-          if (window.GeoAnchor.needsPermission) this.showCompassPrompt(true);
-          const waited = performance.now() - this._waitingForCompassSince;
-          if (waited > COMPASS_TIMEOUT_MS && !this.compassUnavailable) {
-            clearInterval(this._geoUpgradeTimer);
-            this.compassUnavailable = true;
-            console.warn('[location-experiences] no compass after ' +
-              Math.round(waited / 1000) + 's — falling back to camera-relative layout');
-            this.setStatus('No compass — showing approximate placement');
-            this.onGps(this.userLat, this.userLng);
-          }
-        }
-      }, 1500);
-    }
-
-    // GPS does not need XR — start immediately, and also on realityready as backup.
-    this.startGps();
-    window.addEventListener('realityready', () => {
-      this.startGps();
-      if (this.demoLocations) this.runDemoPlant();
-      // Retry plants once AR camera is live (first GPS ping may have been early).
-      if (this.inLittleItaly && !this.statueRoot) this.plantStatuesAroundCamera();
-      if (this.userLat != null) this.onGps(this.userLat, this.userLng);
-    }, { once: true });
-
-    // Fallback if realityready never fires (seen on some iOS/WebView paths).
-    setTimeout(() => {
-      this.startGps();
-      if (this.demoLocations) this.runDemoPlant();
-      if (this.inLittleItaly && !this.statueRoot) this.plantStatuesAroundCamera();
-    }, 4000);
-
-    if (this.demoLocations) {
-      // Plant shortly after load so the camera entity exists.
-      setTimeout(() => this.runDemoPlant(), 1500);
-    }
+    this.startGpsWhenReady();
+    this.refreshAvailable();
   },
 
-  runDemoPlant: function () {
-    this.plantStatuesAroundCamera();
-    this.plantTowerInFront();
-    this.setHint('Demo locations — statues + tower planted');
-    this.setStatus('Demo mode (?demoLocations=1)');
+  /**
+   * GPS only gates what's offered, so it can start as soon as the scene
+   * exists. realityready is the usual moment, with a timer for the iOS /
+   * WebView paths where that event has already gone by.
+   */
+  startGpsWhenReady: function () {
+    this.startGps();
+    window.addEventListener('realityready', () => this.startGps(), { once: true });
+    setTimeout(() => this.startGps(), 4000);
   },
 
   ensureStatusUi: function () {
@@ -304,38 +185,9 @@ AFRAME.registerComponent('location-experiences', {
     this.statusEl = el;
   },
 
-  /**
-   * Backup for the auto-request: a real button, because iOS will only prompt
-   * from a gesture and the auto-arm can be beaten by a tap that lands on the
-   * A-Frame canvas first.
-   */
-  ensureCompassPrompt: function () {
-    if (document.getElementById('compass-prompt')) return;
-    const btn = document.createElement('button');
-    btn.id = 'compass-prompt';
-    btn.type = 'button';
-    btn.textContent = 'Tap to enable compass';
-    btn.addEventListener('click', async () => {
-      const ok = await window.GeoAnchor.requestPermission();
-      this.setStatus(ok ? 'Compass enabled — placing…' : 'Compass blocked in Settings');
-      if (ok) this.showCompassPrompt(false);
-    });
-    document.body.appendChild(btn);
-    this.compassPromptEl = btn;
-  },
-
-  showCompassPrompt: function (show) {
-    const el = this.compassPromptEl || document.getElementById('compass-prompt');
-    if (el) el.classList.toggle('visible', !!show);
-  },
-
   setStatus: function (text) {
     if (!this.statusEl) this.ensureStatusUi();
-    // Once we've given up on the compass, say so on every line — the regular
-    // GPS status would otherwise overwrite the one warning and the placement
-    // would look authoritative when it isn't.
-    const suffix = this.compassUnavailable ? ' · approx (no compass)' : '';
-    if (this.statusEl) this.statusEl.textContent = text + suffix;
+    if (this.statusEl) this.statusEl.textContent = text;
   },
 
   startGps: function () {
@@ -344,7 +196,6 @@ AFRAME.registerComponent('location-experiences', {
       return;
     }
     if (this.watchId != null) return;
-    this.gpsStarted = true;
     this.setStatus('Location: acquiring GPS…');
     this.watchId = navigator.geolocation.watchPosition(
       (pos) => this.onGps(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
@@ -370,95 +221,180 @@ AFRAME.registerComponent('location-experiences', {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   },
 
-  isInLittleItaly: function (lat, lng) {
-    // ~110 m pad so phone GPS jitter near the corridor still counts.
-    const pad = 0.001;
-    const minLat = Math.min(this.liWest.lat, this.liEast.lat) - pad;
-    const maxLat = Math.max(this.liWest.lat, this.liEast.lat) + pad;
-    const minLng = Math.min(this.liWest.lng, this.liEast.lng) - pad;
-    const maxLng = Math.max(this.liWest.lng, this.liEast.lng) + pad;
-    return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+  /** Distance to the nearest pin of a location, in metres. */
+  distanceTo: function (loc, lat, lng) {
+    return Math.min(...loc.pins.map((p) => this.haversineM(lat, lng, p.lat, p.lng)));
   },
 
   onGps: function (lat, lng, accuracy) {
     this.userLat = lat;
     this.userLng = lng;
+    this.accuracy = accuracy;
+    this.refreshAvailable();
+  },
 
-    const acc = typeof accuracy === 'number' ? ` ±${Math.round(accuracy)}m` : '';
-    const towerDist = this.haversineM(lat, lng, this.towerPin.lat, this.towerPin.lng);
-    const inLI = this.isInLittleItaly(lat, lng);
+  /** Recompute which drops are on offer from the latest fix. */
+  refreshAvailable: function () {
+    const available = ['shark'];
+    let near = null;
+    let nearest = null;
 
-    if (inLI) {
-      const wasIn = this.inLittleItaly;
-      this.inLittleItaly = true;
-      // Always (re)plant if missing — first enter used to race the AR camera and never retry.
-      if (!this.statueRoot) {
-        console.log('[location-experiences] Planting Little Italy statues');
-        this.plantStatuesAroundCamera();
-        if (this.statueRoot) {
-          this.setHint('Little Italy — marble statues pointing toward SAP');
-          if (!wasIn) this.el.sceneEl.emit('littleItalyEnter');
-        }
+    LOCATIONS.forEach((loc) => {
+      const d = this.userLat == null ? Infinity : this.distanceTo(loc, this.userLat, this.userLng);
+      if (!nearest || d < nearest.d) nearest = { loc, d };
+      if (this.unlockAll || d <= this.data.nearRadiusM) {
+        loc.drops.forEach((id) => available.push(id));
+        if (d <= this.data.nearRadiusM) near = loc;
       }
-      this.setStatus(`Little Italy · tower ${Math.round(towerDist)}m${acc}`);
-    } else if (this.inLittleItaly) {
-      this.inLittleItaly = false;
-      this.clearStatues();
-      this.el.sceneEl.emit('littleItalyExit');
-      this.setStatus(`Outside Little Italy · tower ${Math.round(towerDist)}m${acc}`);
-    } else {
-      this.setStatus(`GPS ok · tower ${Math.round(towerDist)}m${acc}`);
+    });
+
+    const changed = available.join() !== this.available.join();
+    this.available = available;
+    this.nearLabel = near ? near.label : null;
+    if (!available.includes(this.selected)) this.selected = 'shark';
+
+    const acc = typeof this.accuracy === 'number' ? ` ±${Math.round(this.accuracy)}m` : '';
+    if (this.userLat == null) {
+      this.setStatus(this.unlockAll ? 'Demo: all drops unlocked' : 'Location: acquiring GPS…');
+    } else if (near) {
+      this.setStatus(`Near ${near.label}${acc}`);
+    } else if (nearest) {
+      this.setStatus(`${nearest.loc.label} ${Math.round(nearest.d)}m${acc}`);
     }
 
-    // Tower — wider catch radius; retry if plant failed earlier.
-    if (towerDist <= this.data.towerRadiusM) {
-      if (!this.towerEl) {
-        this.plantTowerInFront();
-        if (this.towerEl) this.setHint('Leaning Tower of Pisa — 8 m · walk around it');
-      }
-    } else if (this.towerEl && towerDist > this.data.towerRadiusM + 20) {
-      this.clearTower();
-    }
-
-    // Jump zones (Wayfinding only so Photo/Goalie stay clean).
-    if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return;
-    if (this.jumpBusy) return;
-
-    for (const pin of this.jumpPins) {
-      const d = this.haversineM(lat, lng, pin.lat, pin.lng);
-      if (d > this.data.jumpRadiusM) continue;
-      const last = this.lastJumpAt[pin.id] || 0;
-      if (performance.now() - last < this.data.jumpCooldownMs) continue;
-      this.playJump(pin.id);
-      break;
+    if (changed) {
+      this.renderDropBar();
+      if (near) this.flashHint(`${near.label} — pick a drop below, then tap the ground`);
     }
   },
 
-  setHint: function (text) {
+  // ---- Drop picker ----------------------------------------------------------
+
+  ensureDropBar: function () {
+    if (document.getElementById('drop-bar')) {
+      this.barEl = document.getElementById('drop-bar');
+      return;
+    }
+    const bar = document.createElement('div');
+    bar.id = 'drop-bar';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Choose what to drop');
+    document.body.appendChild(bar);
+    this.barEl = bar;
+    this.renderDropBar();
+  },
+
+  renderDropBar: function () {
+    const bar = this.barEl;
+    if (!bar) return;
+    const wayfinding = !window.SharksWayMode || window.SharksWayMode.isWayfinding();
+    // Only worth a bar when there is a choice to make.
+    const show = wayfinding && this.available.length > 1;
+    bar.classList.toggle('visible', show);
+    if (!show) return;
+
+    bar.innerHTML = this.available.map((id) => `
+      <button type="button" class="sw-chip${id === this.selected ? ' active' : ''}"
+        data-drop="${id}">${DROP_LABELS[id]}</button>`).join('');
+    bar.querySelectorAll('[data-drop]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.select(btn.getAttribute('data-drop'));
+      });
+    });
+  },
+
+  select: function (id) {
+    if (!this.available.includes(id)) return false;
+    this.selected = id;
+    this.renderDropBar();
+    this.flashHint(DROP_HINTS[id]);
+    return true;
+  },
+
+  flashHint: function (text) {
     const el = document.getElementById('tap-instruction');
     if (!el) return;
     el.textContent = text;
     el.classList.add('visible');
     clearTimeout(this._hintTimer);
-    this._hintTimer = setTimeout(() => el.classList.remove('visible'), 4000);
+    this._hintTimer = setTimeout(() => el.classList.remove('visible'), 3500);
   },
 
-  // ---- Little Italy statues -------------------------------------------------
+  // ---- Tap handling ---------------------------------------------------------
+
+  onGroundTap: function (e) {
+    if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return;
+    // 'shark' is shark-animator's drop; it reads SharksWayDrops.selected().
+    if (this.selected === 'shark') return;
+    const pt = e.detail && e.detail.intersection && e.detail.intersection.point;
+    if (!pt) return;
+    this.drop(this.selected, this.clampDrop(pt));
+  },
+
+  /** Pull a far tap in along the same line — a 60 m drop is a speck that drifts. */
+  clampDrop: function (point) {
+    const cam = document.getElementById('camera');
+    if (!cam) return point.clone();
+    const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
+    const flat = new THREE.Vector3(point.x - origin.x, 0, point.z - origin.z);
+    const d = flat.length();
+    if (d <= MAX_DROP_DISTANCE_M) return new THREE.Vector3(point.x, 0, point.z);
+    flat.multiplyScalar(MAX_DROP_DISTANCE_M / d);
+    return new THREE.Vector3(origin.x + flat.x, 0, origin.z + flat.z);
+  },
+
+  /** Drop at a point straight ahead — for the debug panel and console. */
+  dropAhead: function (id, distanceM) {
+    const cam = document.getElementById('camera');
+    if (!cam || !window.MathUtils) return false;
+    const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
+    const fwd = window.MathUtils.cameraForward(cam);
+    const d = distanceM || (id === 'tower' ? 14 : id === 'river' ? 9 : 5);
+    this.drop(id, new THREE.Vector3(origin.x + fwd.x * d, 0, origin.z + fwd.z * d));
+    return true;
+  },
+
+  drop: function (id, point) {
+    if (id === 'athena') this.placeAthena(point);
+    else if (id === 'tower') this.placeTower(point);
+    else if (id === 'river') this.playJump(point, this.riverWaterY);
+    else if (id === 'party') this.dropParty(point);
+    else if (id === 'shark') {
+      const sr = document.getElementById('shark-root');
+      const anim = sr && sr.components['shark-animator'];
+      if (anim) anim.dropShark(point);
+    }
+  },
+
+  clearAll: function () {
+    Object.keys(this.placed).forEach((k) => this.clearPlaced(k));
+    document.querySelectorAll('[data-drop-root]').forEach((el) => el.remove());
+    clearTimeout(this.partyTimer);
+    this.jumpBusy = false;
+  },
+
+  clearPlaced: function (key) {
+    const el = this.placed[key];
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    delete this.placed[key];
+  },
 
   /**
-   * Anchor root at the camera's ground position, yawed so that local −Z is the
-   * camera's forward. Children then live in a stable "metres ahead / metres
-   * right" frame, which is what debug mode saves as a placement override.
+   * Root at a ground point, turned so its local +Z faces the camera. Children
+   * placed at the origin with no rotation therefore face the visitor, and a
+   * debug-panel override saved on them is an offset from wherever the tap was.
    */
-  makeAnchorRoot: function (id, cam) {
-    const camObj = cam.object3D;
-    const forward = window.MathUtils.cameraForward(cam);
-
-    const origin = camObj.getWorldPosition(new THREE.Vector3());
+  makeDropRoot: function (id, point) {
     const root = document.createElement('a-entity');
-    root.setAttribute('id', id);
-    root.setAttribute('position', `${origin.x} 0 ${origin.z}`);
-    root.setAttribute('rotation', `0 ${THREE.MathUtils.radToDeg(Math.atan2(-forward.x, -forward.z))} 0`);
+    root.setAttribute('data-drop-root', id);
+    root.setAttribute('position', `${point.x} 0 ${point.z}`);
+    const cam = document.getElementById('camera');
+    if (cam) {
+      const c = cam.object3D.getWorldPosition(new THREE.Vector3());
+      const yaw = Math.atan2(c.x - point.x, c.z - point.z) * 180 / Math.PI;
+      root.setAttribute('rotation', `0 ${yaw} 0`);
+    }
     return root;
   },
 
@@ -498,6 +434,7 @@ AFRAME.registerComponent('location-experiences', {
         mesh.position.y -= new THREE.Box3().setFromObject(mesh).min.y /
           (el.object3D.getWorldScale(new THREE.Vector3()).y || 1);
       }
+      el.emit('model-normalized', { factor: f });
     }, { once: true });
   },
 
@@ -509,219 +446,49 @@ AFRAME.registerComponent('location-experiences', {
     return el;
   },
 
-  plantStatuesAroundCamera: function () {
-    const cam = document.getElementById('camera');
-    if (!cam || !cam.object3D) {
-      console.warn('[location-experiences] No camera yet — will retry on next GPS');
-      return false;
-    }
+  // ---- Little Italy: Athena + tower -----------------------------------------
 
-    this.clearStatues();
+  /** One Athena; tapping again moves her. */
+  placeAthena: function (point) {
+    this.clearPlaced('athena');
+    const root = this.makeDropRoot('athena', point);
 
-    // Preferred: put each statue at its actual pin coordinate.
-    const geoRoot = this.makeGeoRoot('little-italy-statues', cam);
-    if (geoRoot) {
-      this.el.appendChild(geoRoot);
-      this.statueRoot = geoRoot;
-      this.statuePins.forEach((pin) => {
-        const off = window.GeoAnchor.localOffset(pin.lat, pin.lng, this.userLat, this.userLng);
-        // Face across the street: north-side statues look south, south-side
-        // look north. CORRIDOR_AXIS_DEG runs east (87°), so +90 is south and
-        // −90 is north. Inside a north-aligned root, a child's scene yaw is the
-        // negated compass bearing.
-        const facingBearing = pin.side === 'north'
-          ? window.GeoAnchor.CORRIDOR_AXIS_DEG + 90   // 177° — looks south
-          : window.GeoAnchor.CORRIDOR_AXIS_DEG - 90;  // 357° — looks north
-        const yaw = -facingBearing;
-
-        // Each pin gets its own anchor at the true coordinate, so a saved
-        // placement override is an offset from the pin — still meaningful next
-        // visit, when the user is standing somewhere else entirely.
-        const pinAnchor = document.createElement('a-entity');
-        pinAnchor.setAttribute('position', `${off.x} 0 ${off.z}`);
-        pinAnchor.setAttribute('rotation', `0 ${yaw} 0`);
-        pinAnchor.setAttribute('data-geo-pin', String(pin.id));
-        geoRoot.appendChild(pinAnchor);
-
-        this.spawnStatue(pinAnchor, pin, { x: 0, y: 0, z: 0 }, 0, off.distance);
-      });
-      this.geoPlaced = true;
-      return true;
-    }
-
-    // No fix or no heading yet. These statues belong to specific street
-    // corners, so putting them in front of whoever is holding the phone is
-    // worse than showing nothing — it looks placed-at-you and moves when you
-    // turn. Wait for the compass instead; the upgrade timer replants.
-    if (!this.forceCameraRelative && !this.compassUnavailable) {
-      this._waitingForCompassSince = this._waitingForCompassSince || performance.now();
-      this.setStatus('Little Italy — getting your bearings…');
-      this.setHint('Hold the phone up and turn slowly');
-      if (window.GeoAnchor && window.GeoAnchor.needsPermission) this.showCompassPrompt(true);
-      return false;
-    }
-
-    // ?geo=0 / demo mode only: lay the corridor out ahead of the user.
-    const root = this.makeAnchorRoot('little-italy-statues', cam);
-    this.el.appendChild(root);
-    this.statueRoot = root;
-    this.geoPlaced = false;
-
-    // Two rows parallel to "street" (local −Z = toward SAP / west-ish).
-    // North side = +X local, South side = −X local; spaced along Z.
-    const northPins = this.statuePins.filter((p) => p.side === 'north');
-    const southPins = this.statuePins.filter((p) => p.side === 'south');
-    const spacing = 4.5;
-    const lateral = 3.2;
-    const aheadM = 6;
-
-    northPins.forEach((pin, i) => {
-      const along = (i - (northPins.length - 1) / 2) * spacing;
-      this.spawnStatue(root, pin, { x: lateral, y: 0, z: -(aheadM + along) }, /*faceStreet*/ -90);
-    });
-    southPins.forEach((pin, i) => {
-      const along = (i - (southPins.length - 1) / 2) * spacing;
-      this.spawnStatue(root, pin, { x: -lateral, y: 0, z: -(aheadM + along) }, /*faceStreet*/ 90);
-    });
-    return true;
-  },
-
-  /**
-   * Root at the user's position whose −Z points true north, so children can be
-   * addressed in east/north metres. Null when there's no fix or no heading yet,
-   * which is the signal to fall back to camera-relative layout.
-   */
-  makeGeoRoot: function (id, cam) {
-    if (this.forceCameraRelative || this.compassUnavailable) return null;
-    if (this.userLat == null || !window.GeoAnchor) return null;
-    if (!window.GeoAnchor.stable) return null;
-    const northYaw = window.GeoAnchor.northYawDeg(cam);
-    if (northYaw == null) return null;
-
-    const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
-    // Anything built on a geo root is at real coordinates — the debug panel
-    // reports this, so set it here rather than in each caller.
-    this.geoPlaced = true;
-    const root = document.createElement('a-entity');
-    root.setAttribute('id', id);
-    root.setAttribute('data-geo-root', '1');
-    root.setAttribute('position', `${origin.x} 0 ${origin.z}`);
-    root.setAttribute('rotation', `0 ${northYaw} 0`);
-    return root;
-  },
-
-  spawnStatue: function (root, pin, localPos, yaw, distance) {
     const ent = document.createElement('a-entity');
-    ent.setAttribute('data-statue-pin', String(pin.id));
-    if (typeof distance === 'number') ent.setAttribute('data-geo-distance', distance.toFixed(1));
-
-    // No shadow casting here: the statues are the heaviest meshes in the scene
-    // and a cast shadow re-renders all of that geometry a second time.
-
-    // Only the far half of a 70 m row is ever off-screen-small, so drop it.
-    ent.setAttribute('cull-distance', `max: ${STATUE_CULL_DISTANCE_M}`);
-
-    // shared-gltf, not gltf-model: one parse per file, cloned per pin, with the
-    // textures downsampled once on the shared master. See shared-gltf.js.
-    //
-    // Which Athena goes on which side: the notes say "pointing Right/West on
-    // North side of the street and Left/West on the South side", and the intent
-    // of both halves is the same — the arm points west, toward SAP. Taking the
-    // filenames at face value pointed them east on site, because the names read
-    // from the viewer's side rather than the statue's: facing south, the arm a
-    // viewer calls "left" is the statue's right. Hence the swap.
-    const athenaNorth = ATHENA_POINT_SWAP ? '#athena-point-left' : '#athena-point-right';
-    const athenaSouth = ATHENA_POINT_SWAP ? '#athena-point-right' : '#athena-point-left';
-    const src = pin.odd
-      ? '#augustus-statue'
-      : (pin.side === 'north' ? athenaNorth : athenaSouth);
-
-    // Athena ships as a mirrored pair so each row can point west. Augustus is a
-    // single model, so the row that faces the other way needs mirroring or its
-    // arm points east. Measured in-scene: north Augustus reads 246° (west),
-    // south read 66° (east) until flipped.
-    const mirrorX = pin.odd && pin.side === AUGUSTUS_MIRROR_SIDE;
-    ent.setAttribute('shared-gltf', `src: ${src}; maxTexture: ${STATUE_MAX_TEXTURE_PX}; mirrorX: ${mirrorX}`);
-
-    // Raw GLBs are 1 m (Augustus) and 206 m (Athena) tall — normalize both to a
-    // consistent street-statue height rather than per-asset scale guesses.
+    // shared-gltf, not gltf-model: one parse per file with textures downsampled
+    // once — the raw Athena textures are what crashed older phones.
+    ent.setAttribute('shared-gltf', `src: #athena-point-right; maxTexture: ${STATUE_MAX_TEXTURE_PX}`);
+    ent.setAttribute('shadow', 'cast: true');
+    // Raw GLB is 206 m tall.
     this.sizeTo(ent, `height: ${STATUE_HEIGHT_M}`);
-
-    // Face across the street (pointing roughly west / toward SAP per redline).
-    this.place(ent, `little-italy/pin-${pin.id}`, {
-      position: localPos,
-      rotation: { x: 0, y: yaw, z: 0 },
+    // Athena faces +Z like the mascots (checked in the desktop sim — at 180°
+    // you get her back), so the drop root already turns her to the visitor.
+    this.place(ent, 'little-italy/athena', {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
       scale: '1 1 1'
     });
-
     root.appendChild(ent);
+    this.el.appendChild(root);
+    this.placed.athena = root;
+    this.flashHint('Athena placed — tap again to move her');
   },
 
-  clearStatues: function () {
-    if (this.statueRoot && this.statueRoot.parentNode) {
-      this.statueRoot.parentNode.removeChild(this.statueRoot);
-    }
-    this.statueRoot = null;
-  },
+  /** One tower; tapping again moves it. Stays until moved so visitors can walk around it. */
+  placeTower: function (point) {
+    this.clearPlaced('tower');
+    const root = this.makeDropRoot('tower', point);
 
-  // ---- Leaning Tower (real GLB, scaled to 8 m) -----------------------------
-
-  plantTowerInFront: function () {
-    const cam = document.getElementById('camera');
-    if (!cam || !cam.object3D) {
-      console.warn('[location-experiences] No camera for tower — will retry');
-      return false;
-    }
-
-    this.clearTower();
-
-    // Geo when we can: the tower belongs on its corner, not 12 m ahead of you.
-    let root = this.makeGeoRoot('leaning-tower-anchor', cam);
-    let parent = root;
-    const towerLocal = { x: 0, y: 0, z: root ? 0 : -12 };
-    if (root) {
-      // Sub-anchor at the true coordinate keeps a saved override meaningful as
-      // an offset from the pin rather than from wherever the user stood.
-      const off = window.GeoAnchor.localOffset(
-        this.towerPin.lat, this.towerPin.lng, this.userLat, this.userLng);
-      parent = document.createElement('a-entity');
-      parent.setAttribute('position', `${off.x} 0 ${off.z}`);
-      parent.setAttribute('data-geo-pin', 'tower');
-      root.appendChild(parent);
-    } else {
-      // Same rule as the statues: the tower has a real corner. Don't drop an
-      // 8 m landmark 12 m in front of whoever happens to be standing here.
-      if (!this.forceCameraRelative && !this.compassUnavailable) {
-        this._waitingForCompassSince = this._waitingForCompassSince || performance.now();
-        this.setStatus('Leaning Tower — getting your bearings…');
-        if (window.GeoAnchor && window.GeoAnchor.needsPermission) this.showCompassPrompt(true);
-        return false;
-      }
-      root = this.makeAnchorRoot('leaning-tower-anchor', cam);
-      parent = root;
-    }
-
-    const h = this.towerPin.heightM;
     const tower = document.createElement('a-entity');
     tower.setAttribute('id', 'leaning-tower');
     tower.setAttribute('gltf-model', '#leaning-tower-model');
     tower.setAttribute('shadow', 'cast: true');
-
-    // Raw GLB is 47.5 m tall; the redline calls for an 8 m landmark replica.
-    this.sizeTo(tower, `height: ${h}`);
-
-    // Aim the lean down the corridor toward SAP, so it leans the way visitors
-    // are walking rather than at a random compass point. Inside a north-aligned
-    // root a child's yaw is the negated bearing, and rotating the model rotates
-    // its lean with it — hence lean-bearing minus target-bearing.
-    const towardSap = root && this.userLat != null
-      ? window.GeoAnchor.bearingToSap(this.towerPin.lat, this.towerPin.lng)
-      : null;
-    const yaw = towardSap == null ? 0 : (TOWER_LEAN_LOCAL_DEG - towardSap);
-
-    this.place(tower, 'leaning-tower', {
-      position: towerLocal,
-      rotation: { x: 0, y: yaw, z: 0 },
+    // Raw GLB is 47.5 m tall.
+    this.sizeTo(tower, `height: ${TOWER_HEIGHT_M}`);
+    // New key: tuning saved under 'leaning-tower' was an offset from the old
+    // GPS pin and would shove a tapped tower away from the tap.
+    this.place(tower, 'leaning-tower/drop', {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
       // Negative X mirrors the model; see TOWER_MIRROR_X.
       scale: TOWER_MIRROR_X ? '-1 1 1' : '1 1 1'
     });
@@ -740,38 +507,27 @@ AFRAME.registerComponent('location-experiences', {
         });
       }, { once: true });
     }
-
     tower.addEventListener('model-error', () => {
       console.warn('[location-experiences] Failed to load Leaning_Tower_of_Pisa.glb');
       this.setStatus('Tower model failed to load');
     }, { once: true });
 
-    parent.appendChild(tower);
+    root.appendChild(tower);
     this.el.appendChild(root);
-    this.towerEl = root;
-    this.setHint('Leaning Tower of Pisa — 8 m · walk around it');
-    return true;
+    this.placed.tower = root;
+    this.flashHint('Leaning Tower placed — walk around it');
   },
 
-  clearTower: function () {
-    if (this.towerEl && this.towerEl.parentNode) {
-      this.towerEl.parentNode.removeChild(this.towerEl);
-    }
-    this.towerEl = null;
-  },
-
-  // ---- Jump sequences -------------------------------------------------------
+  // ---- Jumping shark --------------------------------------------------------
 
   /**
    * Expanding water ring where the shark breaks or re-enters the surface.
-   *
-   * This is the stand-in until Rhonda's splash model lands — swap the two
-   * primitives below for the GLB and keep the call site. It used to carry a
-   * "splash TBD" caption, which read as unfinished in front of an audience.
+   * Stand-in until Rhonda's splash model lands — swap the primitives for the
+   * GLB and keep the call site.
    */
-  spawnSplashRing: function (x, z) {
+  spawnSplashRing: function (x, y, z) {
     const group = document.createElement('a-entity');
-    group.setAttribute('position', `${x} 0.02 ${z}`);
+    group.setAttribute('position', `${x} ${y + 0.02} ${z}`);
 
     const disc = document.createElement('a-cylinder');
     disc.setAttribute('radius', 0.05);
@@ -788,24 +544,13 @@ AFRAME.registerComponent('location-experiences', {
 
     this.el.appendChild(group);
     disc.setAttribute('animation__grow', {
-      property: 'scale',
-      from: '1 1 1',
-      to: '28 1 28',
-      dur: 1000,
-      easing: 'easeOutQuad'
+      property: 'scale', from: '1 1 1', to: '28 1 28', dur: 1000, easing: 'easeOutQuad'
     });
     ring.setAttribute('animation__grow', {
-      property: 'scale',
-      from: '1 1 1',
-      to: '22 1 22',
-      dur: 1100,
-      easing: 'easeOutQuad'
+      property: 'scale', from: '1 1 1', to: '22 1 22', dur: 1100, easing: 'easeOutQuad'
     });
     group.setAttribute('animation__fade', {
-      property: 'scale',
-      to: '0.01 0.01 0.01',
-      dur: 400,
-      delay: 900
+      property: 'scale', to: '0.01 0.01 0.01', dur: 400, delay: 900
     });
     setTimeout(() => {
       if (group.parentNode) group.parentNode.removeChild(group);
@@ -813,225 +558,135 @@ AFRAME.registerComponent('location-experiences', {
   },
 
   /**
-   * Spec, per location: the shark "swims into frame" from a compass direction,
-   * "jumps up like it's jumping out of water", and "comes back down with a
-   * splash" continuing the same way. Bearings are real when geo anchoring is
-   * up; otherwise they degrade to the camera's own frame.
+   * One breach, peaking over `point` and crossing the visitor's view left to
+   * right so the whole arc is in frame.
+   *
+   * The jump itself is the artist's animation in maria-shark-jump-jimmy-txtr.glb
+   * (swim, breach, land, swim on). Sized to a 3 m shark its baked path climbs
+   * 12.6 m and runs 85 m, and it used to loop underneath a second, code-driven
+   * arc — "I can see the shadow but not the shark". dive-clip (shark-motion.js)
+   * now puts the apex on the tap, the water line at `waterY`, and scales the
+   * path to JUMP_APEX_HEIGHT_M (which makes the run ~15 m).
    */
-  playJump: function (jumpId) {
-    const pin = this.jumpPins.find((p) => p.id === jumpId) || this.jumpPins[0];
-    if (!pin || this.jumpBusy) return;
-    if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return;
-
+  playJump: function (point, waterY) {
+    if (this.jumpBusy) return;
     this.jumpBusy = true;
-    this.lastJumpAt[pin.id] = performance.now();
-    this.setHint(`${pin.label} — watch for the shark`);
 
     const cam = document.getElementById('camera');
-    if (!cam) {
-      this.jumpBusy = false;
-      return;
-    }
+    const right = cam && window.MathUtils
+      ? window.MathUtils.cameraRight(cam)
+      : new THREE.Vector3(1, 0, 0);
+    const yaw = Math.atan2(right.x, right.z) * 180 / Math.PI;
 
-    // Travel bearing: underpass and finale head west (finale specifically
-    // toward SAP), the river jump heads north.
-    let bearing = pin.bearingDeg != null
-      ? pin.bearingDeg
-      : (JUMP_BEARINGS[pin.heading] != null ? JUMP_BEARINGS[pin.heading] : 270);
-    let root = this.makeGeoRoot(`jump-${pin.id}-anchor`, cam);
-    if (!root) {
-      // No heading available — put the arc across the camera's view instead, so
-      // the visitor still sees a breach rather than a shark leaving sideways.
-      root = this.makeAnchorRoot(`jump-${pin.id}-anchor`, cam);
-      bearing = 270;
-    }
-
-    const b = bearing * Math.PI / 180;
-    const dir = new THREE.Vector3(Math.sin(b), 0, -Math.cos(b));
-    const across = new THREE.Vector3(-dir.z, 0, dir.x);
-    const arcLength = 14;
-
-    // The finale breaches in the middle of the shark circle: anchor on the
-    // intersection and let the arc peak right there. Everywhere else the apex
-    // should land in front of the visitor rather than on top of them.
-    const apexAtOrigin = pin.id === 'finale' && !!root.getAttribute('data-geo-root');
-    let origin;
-    if (apexAtOrigin) {
-      const off = window.GeoAnchor.localOffset(pin.lat, pin.lng, this.userLat, this.userLng);
-      origin = new THREE.Vector3(off.x, 0, off.z);
-    } else {
-      const apexAhead = 9;
-      origin = dir.clone().multiplyScalar(apexAhead - arcLength / 2)
-        .add(across.multiplyScalar(2));
-    }
+    const root = document.createElement('a-entity');
+    root.setAttribute('data-drop-root', 'jump');
+    root.setAttribute('position', `${point.x} ${waterY || 0} ${point.z}`);
+    root.setAttribute('rotation', `0 ${yaw} 0`);
 
     const ent = document.createElement('a-entity');
     ent.setAttribute('gltf-model', '#diving-shark');
     this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false`);
-    ent.setAttribute('animation-mixer', 'loop: repeat; timeScale: 1.1');
+    ent.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true');
+    ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M });
     ent.setAttribute('shadow', 'cast: true');
-    ent.setAttribute('position', `${origin.x} 0 ${origin.z}`);
-
-    // The breach itself, evaluated per frame — see shark-motion.js.
-    const carrier = document.createElement('a-entity');
-    carrier.setAttribute('shark-arc-jump', {
-      bearing: bearing,
-      approachM: 16,
-      arcLengthM: arcLength,
-      departM: 20,
-      apexHeight: JUMP_APEX_HEIGHT_M,
-      speed: 6.5,
-      apexAtOrigin: apexAtOrigin
-    });
-    carrier.appendChild(ent);
-    // Position/rotation of the shark live on the carrier; keep the model clean.
-    ent.removeAttribute('position');
-
-    const anchor = document.createElement('a-entity');
-    anchor.setAttribute('position', `${origin.x} 0 ${origin.z}`);
-    anchor.appendChild(carrier);
-    root.appendChild(anchor);
+    root.appendChild(ent);
     this.el.appendChild(root);
 
-    // Splash placeholder where it leaves and re-enters the water.
     const splashAt = (evt) => {
       const p = evt.detail && evt.detail.position;
-      if (!p) return;
-      const world = new THREE.Vector3(p.x, 0, p.z);
-      anchor.object3D.localToWorld(world);
-      this.spawnSplashRing(world.x, world.z);
+      if (p) this.spawnSplashRing(p.x, p.y, p.z);
     };
-    carrier.addEventListener('shark-breach-exit', splashAt);
-    carrier.addEventListener('shark-breach-entry', splashAt);
+    ent.addEventListener('shark-breach-exit', splashAt);
+    ent.addEventListener('shark-breach-entry', splashAt);
 
-    // Finale: circle sharks + dancing mascots (placeholders until art lands).
-    if (pin.id === 'finale') {
-      setTimeout(() => {
-        this.plantFinaleCircle(cam);
-        this.plantFinaleDancers(cam);
-      }, 800);
-    }
-
-    carrier.addEventListener('shark-arc-complete', () => {
+    const finish = () => {
       if (root.parentNode) root.parentNode.removeChild(root);
       this.jumpBusy = false;
-    }, { once: true });
-
-    // Belt and braces: never strand the geofence in a busy state.
-    setTimeout(() => {
-      if (root.parentNode) root.parentNode.removeChild(root);
-      this.jumpBusy = false;
-    }, 12000);
+    };
+    ent.addEventListener('animation-finished', () => setTimeout(finish, 300), { once: true });
+    // Never strand the jump in a busy state if the clip fails to load.
+    setTimeout(finish, 9000);
   },
 
+  // ---- SAP party ------------------------------------------------------------
+
   /**
-   * Spec: "Maria & sharks swim in a 60 meter circle around the intersection",
-   * with sharks spread around the circle by offsetting their frames, and
-   * "always have the sharks swimming West toward SAP" — which a circle can only
-   * honour on one side, so the phases are chosen to put a shark on the
-   * SAP-facing arc when the loop starts.
-   *
-   * 60 m is read as the circle's width, hence a 30 m radius. Sharks are that
-   * far out, so they read small; FINALE_CIRCLE_RADIUS_M is the one number to
-   * change if the intent was a 60 m radius or a tighter AR-scaled ring.
+   * Dancing Sharkie + Sammy where the visitor tapped, a pod of sharks circling
+   * the visitor, and a jumping shark over the tap. A second tap restarts it
+   * around wherever they're standing now.
    */
-  plantFinaleCircle: function (cam) {
-    // The geofence can re-fire after its cooldown; one ring is enough.
-    document.querySelectorAll('#finale-circle-anchor').forEach((el) => el.remove());
-    const finale = this.jumpPins.find((p) => p.id === 'finale');
-    let anchor = this.makeGeoRoot('finale-circle-anchor', cam);
-    let centerLocal = { x: 0, y: 0, z: -10 };
+  dropParty: function (point) {
+    document.querySelectorAll('[data-drop-root="party"]').forEach((el) => el.remove());
+    clearTimeout(this.partyTimer);
 
-    if (anchor && finale && this.userLat != null) {
-      // Centre the ring on the intersection itself, not on the visitor.
-      const off = window.GeoAnchor.localOffset(finale.lat, finale.lng, this.userLat, this.userLng);
-      centerLocal = { x: off.x, y: 0, z: off.z };
-    } else {
-      anchor = this.makeAnchorRoot('finale-circle-anchor', cam);
-    }
+    const cam = document.getElementById('camera');
+    if (!cam) return;
 
-    const pivot = document.createElement('a-entity');
-    pivot.setAttribute('id', 'finale-circle');
-    this.place(pivot, 'finale/circle-center', { position: centerLocal });
+    // Circle centred on the visitor — "User is in 'center' of party".
+    const me = cam.object3D.getWorldPosition(new THREE.Vector3());
+    const circleRoot = document.createElement('a-entity');
+    circleRoot.setAttribute('data-drop-root', 'party');
+    circleRoot.setAttribute('position', `${me.x} 0 ${me.z}`);
 
-    // All three swim the circle together as a pod, not spread around it.
-    // (The notes' "offset the frames" trick would space them evenly — that's
-    // FINALE_CIRCLE_FORMATION = 'spread' if the pod reads wrong on site.)
-    const spread = FINALE_CIRCLE_FORMATION === 'spread';
     const sharks = [
-      { id: 'maria', model: '#circle-maria', phase: spread ? 0 : 0, lane: 0 },
-      { id: 'stella', model: '#circle-stella', phase: spread ? 120 : 7, lane: -2.5 },
-      { id: 'jimmy', model: '#circle-jimmy', phase: spread ? 240 : 13, lane: 2.5 }
+      { id: 'maria', model: '#circle-maria', phase: 0, lane: 0 },
+      { id: 'stella', model: '#circle-stella', phase: 120, lane: -1.2 },
+      { id: 'jimmy', model: '#circle-jimmy', phase: 240, lane: 1.2 }
     ];
-
     sharks.forEach((s) => {
       const ent = document.createElement('a-entity');
       ent.setAttribute('gltf-model', s.model);
       this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false`);
       ent.setAttribute('animation-mixer', 'loop: repeat; timeScale: 1.0');
       ent.setAttribute('shadow', 'cast: true');
-      // Path is evaluated per frame — see shark-motion.js.
-      // Staggered lanes and heights so a pod doesn't read as one shark.
+      // Spread around the ring so one is always in view wherever you look.
       ent.setAttribute('shark-circle-swim', {
-        radius: FINALE_CIRCLE_RADIUS_M + s.lane,
-        period: FINALE_CIRCLE_PERIOD_MS,
+        radius: PARTY_CIRCLE_RADIUS_M + s.lane,
+        period: PARTY_CIRCLE_PERIOD_MS,
         phaseDeg: s.phase,
-        height: 1.4 + s.lane * 0.12
+        height: 1.6 + s.lane * 0.2
       });
-      ent.setAttribute('data-placement-key', `finale/circle-${s.id}`);
-      pivot.appendChild(ent);
+      ent.setAttribute('data-placement-key', `party/circle-${s.id}`);
+      circleRoot.appendChild(ent);
     });
+    this.el.appendChild(circleRoot);
 
-    anchor.appendChild(pivot);
-    this.el.appendChild(anchor);
-    setTimeout(() => {
-      if (anchor.parentNode) anchor.parentNode.removeChild(anchor);
-    }, 40000);
-  },
-
-  plantFinaleDancers: function (cam) {
-    // Same as the circle: a re-fired geofence must not stack a second pair.
-    document.querySelectorAll('#finale-dancers-anchor').forEach((el) => el.remove());
-    const anchor = this.makeAnchorRoot('finale-dancers-anchor', cam);
-
-    const dancers = [
-      { id: 'sharkie', model: '#photo-sharkie', offset: -1.7 },
-      { id: 'sammy', model: '#photo-sammy', offset: 1.7 }
-    ];
-
-    dancers.forEach((d) => {
+    // Dancers at the tap, facing the visitor.
+    const danceRoot = this.makeDropRoot('party', point);
+    [{ id: 'sharkie', model: '#photo-sharkie', offset: -1.2 },
+      { id: 'sammy', model: '#photo-sammy', offset: 1.2 }].forEach((d) => {
       const ent = document.createElement('a-entity');
       ent.setAttribute('gltf-model', d.model);
-      // Both mascot GLBs float above their origin and differ in height — normalize.
       this.sizeTo(ent, `height: ${MASCOT_HEIGHT_M}`);
-      // Rotation is the spin animation; position/scale are overridable.
-      this.place(ent, `finale/dancer-${d.id}`, {
-        position: { x: d.offset, y: 0.02, z: -4 },
+      ent.setAttribute('shadow', 'cast: true');
+      this.place(ent, `party/dancer-${d.id}`, {
+        position: { x: d.offset, y: 0.02, z: 0 },
         scale: '1 1 1'
       });
+      // Placeholder dance until the mascots are animated: a spin and a bounce.
       ent.setAttribute('animation__spin', {
-        property: 'rotation',
-        to: '0 360 0',
-        loop: true,
-        dur: 4000,
-        easing: 'linear'
+        property: 'rotation', to: '0 360 0', loop: true, dur: 4000, easing: 'linear'
       });
-      anchor.appendChild(ent);
+      danceRoot.appendChild(ent);
     });
+    this.el.appendChild(danceRoot);
 
-    this.el.appendChild(anchor);
-    setTimeout(() => {
-      if (anchor.parentNode) anchor.parentNode.removeChild(anchor);
-    }, 12000);
+    // The jump peaks just behind the dancers so it doesn't clip through them.
+    const fwd = window.MathUtils ? window.MathUtils.cameraForward(cam) : new THREE.Vector3(0, 0, -1);
+    this.jumpBusy = false;
+    setTimeout(() => this.playJump(point.clone().addScaledVector(fwd, 3), 0), 1200);
+
+    this.flashHint('Party! Look around — the sharks are circling you');
+    this.partyTimer = setTimeout(() => {
+      document.querySelectorAll('[data-drop-root="party"]').forEach((el) => el.remove());
+    }, PARTY_DURATION_MS);
   },
 
   remove: function () {
     if (this.watchId != null) {
       try { navigator.geolocation.clearWatch(this.watchId); } catch (e) { /* ignore */ }
     }
-    clearInterval(this._geoUpgradeTimer);
-    this.clearStatues();
-    this.clearTower();
+    this.clearAll();
   }
 });
 

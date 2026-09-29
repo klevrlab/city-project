@@ -30,6 +30,18 @@ const CHAR_SELFIE_SRC = {
   [CHAR.SAMMY]: './assets/3D-models/sammy_final_pose.glb'
 };
 
+/** Sharkie / Sammy height in metres. Keep in step with MASCOT_HEIGHT_M in location-experiences.js. */
+const MASCOT_HEIGHT_M = 1.9;
+
+/**
+ * Farthest a tapped mascot may land. On site, taps toward the horizon put the
+ * mascot 10+ m out, where it was small and SLAM drift walked it around ("once
+ * placed mascot drifts so hard to get into view"). A few metres away is where a
+ * photo with it works anyway.
+ */
+const PHOTO_MAX_DISTANCE_M = 3.5;
+const PHOTO_MIN_DISTANCE_M = 1.2;
+
 const state = {
   mode: MODE.WAYFINDING,
   photoCharacter: CHAR.SHARKIE,
@@ -40,9 +52,10 @@ const state = {
     stream: null,
     pose: null,
     camera: null,
-    lastPos: null,
-    size: 250,
-    yNudge: -70,
+    lastRect: null,
+    // Mascot box height as a fraction of the screen, and where it stands
+    // relative to the right shoulder (screen px, before mirroring).
+    heightFrac: 0.42,
     xNudge: 50,
     scriptsReady: false,
     scriptsLoading: null
@@ -90,32 +103,52 @@ function clearPhotoMascot() {
   state.photoEntity = null;
 }
 
-function placePhotoMascot(point) {
+function spawnPhotoMascot(point, facingYaw) {
   const root = document.getElementById('photo-root');
-  if (!root || !point) return;
-
+  if (!root) return;
   clearPhotoMascot();
-
-  let facingYaw = 0;
-  const cam = document.getElementById('camera');
-  if (cam) {
-    const dir = new THREE.Vector3().subVectors(point, cam.object3D.position);
-    dir.y = 0;
-    if (dir.lengthSq() > 0.01) facingYaw = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
-  }
-
   const model = CHAR_MODEL[state.photoCharacter] || CHAR_MODEL[CHAR.SHARKIE];
   const ent = document.createElement('a-entity');
   ent.setAttribute('gltf-model', model);
-  ent.setAttribute('position', `${point.x} ${point.y + 0.02} ${point.z}`);
+  ent.setAttribute('position', `${point.x} 0.02 ${point.z}`);
   ent.setAttribute('rotation', `0 ${facingYaw} 0`);
   // Sharkie is 1.95 m in its GLB and Sammy 2.96 m, and both float above their
-  // origin — normalize to a common height so photos frame consistently. Matches
-  // MASCOT_HEIGHT_M in location-experiences.js; keep the two in step.
-  ent.setAttribute('model-normalize', 'height: 1.425');
+  // origin — normalize to a common height so photos frame consistently.
+  ent.setAttribute('model-normalize', `height: ${MASCOT_HEIGHT_M}`);
   ent.setAttribute('shadow', 'cast: true');
   root.appendChild(ent);
   state.photoEntity = ent;
+}
+
+function placePhotoMascot(tapPoint) {
+  const root = document.getElementById('photo-root');
+  if (!root || !tapPoint) return;
+
+  clearPhotoMascot();
+
+  // Keep the mascot at photo distance, along the line the visitor tapped.
+  const point = new THREE.Vector3(tapPoint.x, 0, tapPoint.z);
+  let facingYaw = 0;
+  const cam = document.getElementById('camera');
+  if (cam) {
+    const camPos = cam.object3D.getWorldPosition(new THREE.Vector3());
+    const toPoint = new THREE.Vector3(point.x - camPos.x, 0, point.z - camPos.z);
+    let d = toPoint.length();
+    if (d < 0.01) {
+      window.MathUtils.cameraForward(cam, toPoint);
+      d = 0;
+    } else {
+      toPoint.divideScalar(d);
+    }
+    d = Math.min(Math.max(d, PHOTO_MIN_DISTANCE_M), PHOTO_MAX_DISTANCE_M);
+    point.set(camPos.x + toPoint.x * d, 0, camPos.z + toPoint.z * d);
+
+    // Models face +Z: aim +Z from the mascot back at the camera. The old math
+    // aimed it along the tap ray, i.e. facing away from the photographer.
+    facingYaw = Math.atan2(-toPoint.x, -toPoint.z) * (180 / Math.PI);
+  }
+
+  spawnPhotoMascot(point, facingYaw);
 
   setInstruction('Tap again to move · Snap to save · Flip for selfie', true);
   setTimeout(() => {
@@ -252,45 +285,72 @@ function applySelfieCharacter() {
   viewer.setAttribute('src', CHAR_SELFIE_SRC[state.photoCharacter] || CHAR_SELFIE_SRC[CHAR.SHARKIE]);
 }
 
+/**
+ * Where the video is actually drawn. The preview is `object-fit: cover`, so
+ * the camera frame is scaled up and cropped to fill the screen; MediaPipe's
+ * normalized landmarks are in *frame* coordinates. Mapping them straight onto
+ * the window (the old `lm.x * innerWidth`) was off by the crop, which is what
+ * pushed the mascot's head off the top of the screen.
+ */
+function coverRect(video) {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const vw = video.videoWidth || W;
+  const vh = video.videoHeight || H;
+  const scale = Math.max(W / vw, H / vh);
+  const w = vw * scale;
+  const h = vh * scale;
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+
 function onSelfiePoseResults(results) {
   const overlay = document.getElementById('sw-selfie-overlay');
   const viewer = document.getElementById('sw-selfie-viewer');
-  if (!overlay || !viewer) return;
+  const video = document.getElementById('sw-selfie-video');
+  if (!overlay || !viewer || !video) return;
 
   if (!results.poseLandmarks) {
     overlay.classList.remove('visible');
-    state.selfie.lastPos = null;
+    state.selfie.lastRect = null;
     return;
   }
 
   const lm = results.poseLandmarks;
-  // Landmark 12 = right shoulder (project convention); also blend left for stability.
+  // Landmark 12 = right shoulder (project convention); 11 = left.
   const left = lm[11];
   const right = lm[12];
   if (!left || !right) return;
 
   const W = window.innerWidth;
   const H = window.innerHeight;
-  const half = state.selfie.size / 2;
+  const r = coverRect(video);
+  // Mirrored preview → flip X.
+  const toScreen = (p) => ({ x: r.x + (1 - p.x) * r.w, y: r.y + p.y * r.h });
+  const ls = toScreen(left);
+  const rs = toScreen(right);
 
-  // Mirrored selfie preview → flip X
-  const lx = (1 - left.x) * W;
-  const ly = left.y * H;
-  const rx = (1 - right.x) * W;
-  const ry = right.y * H;
+  // Feet on the right shoulder, nudged outward and blended a little toward the
+  // mid-shoulder so it doesn't jitter off the edge of the body.
+  const footX = (rs.x + state.selfie.xNudge) * 0.75 + ((ls.x + rs.x) / 2) * 0.25;
+  const footY = rs.y * 0.75 + ((ls.y + rs.y) / 2) * 0.25;
 
-  let px = rx + state.selfie.xNudge;
-  let py = ry + state.selfie.yNudge;
-  // Soft blend toward mid-shoulder so the mascot sits more naturally
-  px = px * 0.65 + ((lx + rx) / 2) * 0.35;
-  py = py * 0.65 + ((ly + ry) / 2) * 0.35;
+  // A full-body mascot is taller than wide. Shrink it rather than let the head
+  // leave the top of the screen — "head cut off" was the #1 selfie complaint.
+  const margin = 8;
+  let h = Math.round(H * state.selfie.heightFrac);
+  h = Math.min(h, Math.max(140, footY - margin));
+  const w = Math.round(h * 0.7);
+  let left0 = footX - w / 2;
+  let top0 = footY - h;
+  left0 = Math.min(Math.max(left0, margin), W - w - margin);
+  top0 = Math.min(Math.max(top0, margin), H - h - margin);
 
-  overlay.style.left = `${px - half}px`;
-  overlay.style.top = `${py - half}px`;
+  overlay.style.left = `${left0}px`;
+  overlay.style.top = `${top0}px`;
+  viewer.style.width = `${w}px`;
+  viewer.style.height = `${h}px`;
   overlay.classList.add('visible');
-  viewer.style.width = `${state.selfie.size}px`;
-  viewer.style.height = `${state.selfie.size}px`;
-  state.selfie.lastPos = { px, py };
+  state.selfie.lastRect = { x: left0, y: top0, w, h };
 }
 
 async function startSelfieMode() {
@@ -367,7 +427,7 @@ function stopSelfieMode() {
   } catch (e) { /* ignore */ }
   state.selfie.camera = null;
   state.selfie.pose = null;
-  state.selfie.lastPos = null;
+  state.selfie.lastRect = null;
 
   if (state.selfie.stream) {
     state.selfie.stream.getTracks().forEach((t) => t.stop());
@@ -422,7 +482,13 @@ function capturePlaceMode() {
   }
 }
 
-function captureSelfieMode() {
+/**
+ * Capture what the visitor sees: the cover-cropped, mirrored preview with the
+ * mascot where it was drawn. The old capture saved the raw camera frame and
+ * stretched the mascot by separate X/Y factors, so the photo never matched the
+ * screen.
+ */
+async function captureSelfieMode() {
   const video = document.getElementById('sw-selfie-video');
   const viewer = document.getElementById('sw-selfie-viewer');
   if (!video || !video.videoWidth) {
@@ -430,34 +496,31 @@ function captureSelfieMode() {
     return;
   }
 
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = window.innerWidth;
+  const H = window.innerHeight;
   const out = document.createElement('canvas');
-  out.width = video.videoWidth;
-  out.height = video.videoHeight;
+  out.width = Math.round(W * dpr);
+  out.height = Math.round(H * dpr);
   const ctx = out.getContext('2d');
-  const scaleX = video.videoWidth / window.innerWidth;
-  const scaleY = video.videoHeight / window.innerHeight;
+  ctx.scale(dpr, dpr);
 
+  const r = coverRect(video);
   ctx.save();
-  ctx.translate(out.width, 0);
+  ctx.translate(W, 0);
   ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0, out.width, out.height);
+  ctx.drawImage(video, W - r.x - r.w, r.y, r.w, r.h);
   ctx.restore();
 
-  if (state.selfie.lastPos && viewer && viewer.shadowRoot) {
-    const mvCanvas = viewer.shadowRoot.querySelector('canvas');
-    if (mvCanvas) {
-      const size = state.selfie.size;
-      ctx.save();
-      ctx.translate(out.width, 0);
-      ctx.scale(-1, 1);
-      const x = (out.width / scaleX - state.selfie.lastPos.px - size / 2) * scaleX;
-      const y = (state.selfie.lastPos.py - size / 2) * scaleY;
-      const w = size * scaleX;
-      const h = size * scaleY;
-      ctx.translate(x + w, y);
-      ctx.scale(-1, 1);
-      ctx.drawImage(mvCanvas, 0, 0, w, h);
-      ctx.restore();
+  const rect = state.selfie.lastRect;
+  if (rect && viewer && typeof viewer.toDataURL === 'function') {
+    try {
+      const img = new Image();
+      img.src = viewer.toDataURL('image/png');
+      await img.decode();
+      ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
+    } catch (e) {
+      console.warn('Selfie mascot capture failed', e);
     }
   }
 
@@ -581,13 +644,14 @@ function injectModeUi() {
     <div id="sw-selfie-overlay">
       <model-viewer id="sw-selfie-viewer"
         src="./assets/3D-models/sharkie_final_pose.glb"
-        camera-orbit="0deg 75deg 150%"
-        field-of-view="60deg"
+        camera-orbit="0deg 80deg 105%"
+        camera-target="auto auto auto"
         disable-zoom
+        disable-pan
         interaction-prompt="none"
         environment-image="neutral"
         shadow-intensity="0"
-        style="width:250px;height:250px;background:transparent;--poster-color:transparent;">
+        style="width:210px;height:300px;background:transparent;--poster-color:transparent;">
       </model-viewer>
     </div>
     <div id="sw-selfie-hint">Step back so your shoulders are visible</div>
@@ -670,8 +734,12 @@ function wirePhotoBar() {
     btn.addEventListener('click', () => {
       state.photoCharacter = btn.getAttribute('data-photo-char');
       syncPhotoCharacterButtons();
+      // Replace the mascot in place. Changing gltf-model on the live entity
+      // fires model-error for an <a-asset-item> selector (A-Frame 1.5), which
+      // left an empty spot where the mascot had been.
       if (state.photoEntity) {
-        state.photoEntity.setAttribute('gltf-model', CHAR_MODEL[state.photoCharacter]);
+        const o = state.photoEntity.object3D;
+        spawnPhotoMascot(o.position.clone(), THREE.MathUtils.radToDeg(o.rotation.y));
       }
       if (state.photoSubmode === 'selfie') applySelfieCharacter();
     });

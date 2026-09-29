@@ -20,6 +20,9 @@
  *             as data/placement-overrides.json.
  */
 
+const DROP_IDS = ['shark', 'athena', 'tower', 'river', 'party'];
+const LOCATION_IDS = [['littleitaly', 'Little Italy'], ['river', 'Guadalupe River'], ['sap', 'SAP Center']];
+
 const GLB_MANIFEST = [
   './assets/3D-models/Athena_Statue-point-left.glb',
   './assets/3D-models/Athena_Statue-point-right.glb',
@@ -290,7 +293,7 @@ AFRAME.registerComponent('debug-placement', {
         visible,
         height,
         // Anything over a storey is either unnormalized or a bad override.
-        oversized: height > 4 && key !== 'leaning-tower',
+        oversized: height > 4 && !String(key).startsWith('leaning-tower'),
         normalized: !!el.components && !!el.components['model-normalize'],
         world,
         summary: `${key} · ${state} · ${dims} · ${dist.toFixed(1)}m · ${visible ? 'visible' : 'HIDDEN'}`
@@ -363,11 +366,9 @@ AFRAME.registerComponent('debug-placement', {
       </div>
       <h4>Shark recognition</h4>
       <div class="dbg-list">${this.visionLines()}</div>
-      <h4>Geo anchoring</h4>
-      <div class="dbg-list">${this.geoLines()}</div>
       <h4>Sizing self-check</h4>
       <div class="dbg-list">${checks.join('')}</div>
-      <h4>Geofences</h4>
+      <h4>Locations &amp; drops</h4>
       <div class="dbg-list">${geo}</div>
       <h4>Assets (&lt;a-asset-item&gt;)</h4>
       <table class="dbg-table"><tr><th>id</th><th>state</th><th>http</th><th>size</th></tr>${assets}</table>
@@ -407,81 +408,35 @@ AFRAME.registerComponent('debug-placement', {
     `;
   },
 
-  geoLines: function () {
-    const G = window.GeoAnchor;
-    if (!G) return '<div class="dbg-dim">geo-anchor.js not loaded</div>';
-    const lx = this.el.sceneEl.components['location-experiences'];
-    const mode = lx && lx.geoPlaced ? 'GPS coordinates' : 'camera-relative (fallback)';
-    const heading = G.ready ? `${G.heading.toFixed(0)}° (${G.headingSource}${G.accuracy != null ? ' ±' + Math.round(G.accuracy) + '°' : ''})` : 'none yet';
-
-    setTimeout(() => {
-      const grant = document.getElementById('dbg-compass');
-      if (grant) {
-        grant.onclick = async () => {
-          const ok = await G.requestPermission();
-          this.toast(ok ? 'Compass enabled — now RE-ANCHOR' : 'Compass permission denied');
-          this.render();
-        };
-      }
-      const cal = document.getElementById('dbg-calibrate');
-      if (cal) {
-        cal.onclick = () => {
-          if (this.gps.lat == null) return this.toast('Need a GPS fix to calibrate');
-          const b = G.calibrate(undefined, this.gps.lat, this.gps.lng);
-          this.toast(`Heading pinned to ${b.toFixed(0)}° (SAP) — re-anchoring`);
-          if (window.reanchorLocations) window.reanchorLocations();
-          this.render();
-        };
-      }
-      const re = document.getElementById('dbg-reanchor');
-      if (re) {
-        re.onclick = () => {
-          if (window.reanchorLocations) window.reanchorLocations();
-          this.toast('Re-planted at current fix + heading');
-          this.render();
-        };
-      }
-    }, 0);
-
-    return `
-      <div class="dbg-row"><span class="dbg-name">Placement mode</span>
-        <span class="${lx && lx.geoPlaced ? 'dbg-good' : 'dbg-bad'}">${mode}</span></div>
-      <div class="dbg-row"><span class="dbg-name">Heading</span><span>${heading}</span></div>
-      <div class="dbg-row"><span class="dbg-name">Bearing to SAP</span>
-        <span>${this.gps.lat != null ? G.bearingToSap(this.gps.lat, this.gps.lng).toFixed(0) + '°' : 'needs fix'}</span></div>
-      <div class="dbg-row"><span class="dbg-name">Corridor axis (east)</span>
-        <span>${G.CORRIDOR_AXIS_DEG.toFixed(0)}° · toward SAP ${((G.CORRIDOR_AXIS_DEG + 180) % 360).toFixed(0)}°</span></div>
-      <div class="dbg-actions">
-        <button class="dbg-mini" id="dbg-compass">enable compass</button>
-        <button class="dbg-mini" id="dbg-calibrate">calibrate: facing SAP</button>
-        <button class="dbg-mini" id="dbg-reanchor">re-anchor now</button>
-      </div>
-      <div class="dbg-dim">Stand on the corridor facing SAP Center, then tap calibrate — that
-      replaces magnetometer error with a bearing that's right by construction.</div>
-    `;
-  },
-
   geofenceLines: function () {
     const lx = this.el.sceneEl && this.el.sceneEl.components['location-experiences'];
     if (!lx) return '<div class="dbg-dim">location-experiences not attached</div>';
-    if (this.gps.lat == null) {
-      return '<div class="dbg-dim">waiting for GPS — use MODELS tab to spawn without it</div>';
-    }
     const rows = [];
-    const d = (lat, lng) => lx.haversineM(this.gps.lat, this.gps.lng, lat, lng);
-    rows.push(row('Little Italy box', lx.isInLittleItaly(this.gps.lat, this.gps.lng) ? 'INSIDE' : 'outside',
-      lx.statueRoot ? 'statues planted' : 'no statues'));
-    rows.push(row('Leaning Tower', `${Math.round(d(lx.towerPin.lat, lx.towerPin.lng))}m / ${lx.data.towerRadiusM}m`,
-      lx.towerEl ? 'planted' : 'not planted'));
-    lx.jumpPins.forEach((p) => {
-      rows.push(row(p.label, `${Math.round(d(p.lat, p.lng))}m / ${lx.data.jumpRadiusM}m`,
-        `<button class="dbg-mini" data-jump="${p.id}">fire</button>`));
-    });
+    rows.push(row('Offered now', lx.available.join(', '), `selected: ${lx.selected}`));
+    if (this.gps.lat == null) {
+      rows.push('<div class="dbg-dim">waiting for GPS — drops below work without it</div>');
+    } else {
+      LOCATION_IDS.forEach(([id, label]) => {
+        const loc = lx.locations.find((l) => l.id === id);
+        if (!loc) return;
+        const d = lx.distanceTo(loc, this.gps.lat, this.gps.lng);
+        rows.push(row(label, `${Math.round(d)}m / ${lx.data.nearRadiusM}m`,
+          d <= lx.data.nearRadiusM ? 'NEAR' : ''));
+      });
+    }
+    rows.push(`<div class="dbg-actions">${DROP_IDS.map((id) =>
+      `<button class="dbg-mini" data-drop-ahead="${id}">drop ${id}</button>`).join('')}
+      <button class="dbg-mini" data-drop-ahead="clear">clear drops</button></div>`);
+    rows.push(`<div class="dbg-dim">River water line: ${lx.riverWaterY} m
+      (set with &amp;waterY=-3 in the URL, then write it into RIVER_WATER_Y_M)</div>`);
     setTimeout(() => {
-      document.querySelectorAll('[data-jump]').forEach((b) => {
+      document.querySelectorAll('[data-drop-ahead]').forEach((b) => {
         b.onclick = () => {
-          const lxc = this.el.sceneEl.components['location-experiences'];
-          if (lxc) lxc.playJump(b.getAttribute('data-jump'));
+          const id = b.getAttribute('data-drop-ahead');
+          if (!window.SharksWayDrops) return;
+          if (id === 'clear') window.SharksWayDrops.clear();
+          else window.SharksWayDrops.dropAhead(id);
+          this.toast(id === 'clear' ? 'cleared drops' : `dropped ${id} ahead`);
         };
       });
     }, 0);
@@ -505,8 +460,6 @@ AFRAME.registerComponent('debug-placement', {
       <div class="dbg-actions">
         <button class="dbg-mini" id="dbg-spawn-all">spawn all in a row</button>
         <button class="dbg-mini" id="dbg-clear-spawned">clear spawned (${this.spawned.length})</button>
-        <button class="dbg-mini" id="dbg-force-statues">force statues</button>
-        <button class="dbg-mini" id="dbg-force-tower">force tower</button>
         <button class="dbg-mini ${this.normalizeSpawns ? 'dbg-on' : ''}" id="dbg-norm">size: ${this.normalizeSpawns ? 'normalized 2.5m' : 'RAW GLB'}</button>
       </div>
       <div class="dbg-dim">Spawns land 3 m ahead and report their measured size. Switch to RAW GLB
@@ -521,14 +474,6 @@ AFRAME.registerComponent('debug-placement', {
     });
     pane.querySelector('#dbg-spawn-all').onclick = () => this.spawnAllModels();
     pane.querySelector('#dbg-clear-spawned').onclick = () => this.clearSpawned();
-    pane.querySelector('#dbg-force-statues').onclick = () => {
-      if (window.forceLittleItalyStatues) window.forceLittleItalyStatues();
-      this.toast('planted Little Italy statues');
-    };
-    pane.querySelector('#dbg-force-tower').onclick = () => {
-      if (window.forceLeaningTower) window.forceLeaningTower();
-      this.toast('planted Leaning Tower');
-    };
     pane.querySelector('#dbg-norm').onclick = () => {
       this.normalizeSpawns = !this.normalizeSpawns;
       this.render();
@@ -538,7 +483,7 @@ AFRAME.registerComponent('debug-placement', {
   renderObjects: function () {
     const objs = this.collectObjects();
     if (!objs.length) {
-      this.pane('objects').innerHTML = '<div class="dbg-dim">Nothing placed yet. Use the MODELS tab or walk into a geofence.</div>';
+      this.pane('objects').innerHTML = '<div class="dbg-dim">Nothing placed yet. Use the MODELS tab, or tap-drop something.</div>';
       return;
     }
     const rows = objs.map((o, i) => `

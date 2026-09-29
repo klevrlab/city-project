@@ -17,18 +17,20 @@
  *
  * URL params:
  *   ?desktop=1              enable, standing at the Little Italy corridor
- *   &at=tower|finale|river|underpass|littleitaly    start at a named pin
+ *   &at=littleitaly|athena|tower|river|sap|underpass    start at a named pin
  *   &lat=37.3354&lng=-121.8974                      start at explicit coords
  *
  * Console: SimGps.teleport('tower'), SimGps.set(lat, lng), SimGps.where()
  */
 
 const PINS = {
-  littleitaly: { lat: 37.335397, lng: -121.897650, label: 'Little Italy (statue pin 1)' },
-  tower: { lat: 37.335429, lng: -121.897883, label: 'Leaning Tower' },
+  littleitaly: { lat: 37.335333, lng: -121.897389, label: 'Little Italy (Athena, near the overpass)' },
+  athena: { lat: 37.335333, lng: -121.897389, label: 'Athena drop' },
+  tower: { lat: 37.335417, lng: -121.897889, label: 'Leaning Tower (western corner)' },
   underpass: { lat: 37.335391, lng: -121.896682, label: 'Underpass Jump' },
   river: { lat: 37.334664, lng: -121.899474, label: 'River Jump' },
-  finale: { lat: 37.334113, lng: -121.900460, label: 'Grand Finale Jump' }
+  sap: { lat: 37.334111, lng: -121.900472, label: 'SAP Center party' },
+  finale: { lat: 37.334111, lng: -121.900472, label: 'SAP Center party' }
 };
 
 const params = new URLSearchParams(window.location.search);

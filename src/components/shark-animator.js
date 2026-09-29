@@ -65,6 +65,9 @@ AFRAME.registerComponent('shark-animator', {
     if (ground) {
       ground.addEventListener('click', (e) => {
         if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return;
+        // Near a location the drop bar can switch the tap to Athena, the tower,
+        // the river jump or the party — location-experiences handles those.
+        if (window.SharksWayDrops && window.SharksWayDrops.selected() !== 'shark') return;
         const pt = e.detail.intersection.point;
         this.dropShark(pt);
       });
@@ -122,13 +125,18 @@ AFRAME.registerComponent('shark-animator', {
     if (navOverlay) navOverlay.classList.remove('visible');
   },
 
+  /**
+   * A ground point `distanceMeters` ahead, measured along the ground. The old
+   * version stepped along the camera's full 3D forward and then dropped to
+   * y=0, so with the phone pointed down at a painted shark — the exact moment
+   * a scan fires — the target landed almost under the visitor's feet. From
+   * there the swim direction degenerated to world −Z, unrelated to where they
+   * faced: the "swimming at a funny angle" on site.
+   */
   getForwardTarget: function (distanceMeters) {
     const cam = document.getElementById('camera');
-    const camPos = cam.object3D.position.clone();
-    const camDir = new THREE.Vector3();
-    cam.object3D.getWorldDirection(camDir);
-    camDir.multiplyScalar(-1);
-    const pt = camPos.add(camDir.multiplyScalar(distanceMeters));
+    const pt = cam.object3D.getWorldPosition(new THREE.Vector3());
+    pt.addScaledVector(window.MathUtils.cameraForward(cam), distanceMeters);
     pt.y = 0;
     return pt;
   },
@@ -208,11 +216,12 @@ AFRAME.registerComponent('shark-animator', {
     const startY = -0.6;
     const hoverY = 0.95;
 
-    // Face the dropped shark toward the viewer.
+    // Face the dropped shark toward the viewer. The model's nose is +Z, so
+    // aim +Z from the shark back at the camera (the old math aimed it away).
     let facingYaw = 0;
     const cam = document.getElementById('camera');
     if (cam) {
-      const dir = new THREE.Vector3().subVectors(targetPoint, cam.object3D.position);
+      const dir = new THREE.Vector3().subVectors(cam.object3D.position, targetPoint);
       dir.y = 0;
       if (dir.lengthSq() > 0.01) facingYaw = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
     }
@@ -305,7 +314,7 @@ AFRAME.registerComponent('shark-animator', {
     const camPos = cam.object3D.position.clone();
     const dirToTarget = new THREE.Vector3().subVectors(targetPoint, camPos);
     dirToTarget.y = 0;
-    if (dirToTarget.lengthSq() < 0.1) dirToTarget.set(0, 0, -1);
+    if (dirToTarget.lengthSq() < 0.1) window.MathUtils.cameraForward(cam, dirToTarget);
     dirToTarget.normalize();
     const baseYaw = Math.atan2(dirToTarget.x, dirToTarget.z) * (180 / Math.PI);
     const facingYaw = baseYaw + (experience.rotationOffsetY || 0);

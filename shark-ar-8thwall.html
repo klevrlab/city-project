@@ -47,6 +47,7 @@
     <script type="module" src="./src/utils/geo-anchor.js"></script>
     <script type="module" src="./src/components/model-normalize.js"></script>
     <script type="module" src="./src/components/shark-motion.js"></script>
+    <script type="module" src="./src/components/sun-follow.js"></script>
     <script type="module" src="./src/components/shared-gltf.js"></script>
     <script type="module" src="./src/components/sharks-way-modes.js"></script>
     <!-- Placement overrides must register before anything plants content. -->
@@ -86,7 +87,7 @@
         cursor="rayOrigin: mouse"
         raycaster="objects: .clickable"
         renderer="antialias: true; alpha: true; logarithmicDepthBuffer: true; colorManagement: true;"
-        tour-ui shark-detector="useGps: true; useVision: true" location-experiences>
+        tour-ui shark-detector="useGps: false; useVision: true" location-experiences>
 
         <a-assets>
             <!-- June 10 redline: Wayfinding cycle is Maria + Jimmy only. Stella,
@@ -96,14 +97,14 @@
             <!-- Photo Mode mascots (place on ground; Flip Camera opens selfie-ar). -->
             <a-asset-item id="photo-sharkie" src="./assets/3D-models/sharkie_final_pose.glb"></a-asset-item>
             <a-asset-item id="photo-sammy" src="./assets/3D-models/sammy_final_pose.glb"></a-asset-item>
-            <!-- Little Italy marble statues (June 10). Even=Athena L/R, odd=Augustus. -->
-            <a-asset-item id="athena-point-left" src="./assets/3D-models/Athena_Statue-point-left.glb"></a-asset-item>
+            <!-- Little Italy tap-to-place (Sept 28): one Athena + the tower. The
+                 left-pointing Athena and Augustus belonged to the retired 8-statue
+                 row; they're still spawnable from the debug MODELS tab. -->
             <a-asset-item id="athena-point-right" src="./assets/3D-models/Athena_Statue-point-right.glb"></a-asset-item>
-            <a-asset-item id="augustus-statue" src="./assets/3D-models/Augustus_of_Prima_Porta.glb"></a-asset-item>
             <a-asset-item id="leaning-tower-model" src="./assets/3D-models/Leaning_Tower_of_Pisa.glb"></a-asset-item>
-            <!-- Jump-location diving shark (splash TBD). -->
+            <!-- River jump + party jump. Carries its own baked breach; see dive-clip. -->
             <a-asset-item id="diving-shark" src="./assets/3D-models/maria-shark-jump-jimmy-txtr.glb"></a-asset-item>
-            <!-- Grand finale circle placeholders (until dedicated orbit anims). -->
+            <!-- SAP party circle sharks. -->
             <a-asset-item id="circle-maria" src="./assets/3D-models/SEAN_ANIMATED_WiTH_MARIA_SHARK.glb"></a-asset-item>
             <a-asset-item id="circle-stella" src="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb"></a-asset-item>
             <a-asset-item id="circle-jimmy" src="./assets/3D-models/jimmy-shark-swimmer.glb"></a-asset-item>
@@ -111,7 +112,7 @@
 
         <!-- Lighting for AR Shadows -->
         <a-entity light="type: ambient; intensity: 0.5;"></a-entity>
-        <a-entity light="type: directional; castShadow: true; intensity: 0.8; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraTop: 20; shadowCameraBottom: -20; shadowCameraRight: 20; shadowCameraLeft: -20; target: #camera" position="5 10 5"></a-entity>
+        <a-entity light="type: directional; castShadow: true; intensity: 0.8; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraTop: 20; shadowCameraBottom: -20; shadowCameraRight: 20; shadowCameraLeft: -20; shadowBias: -0.0005; target: #camera" position="5 10 5" sun-follow></a-entity>
 
         <!-- Shadow Ground Plane (Clickable for spawning) -->
         <a-plane id="ground" class="clickable" position="0 0 0" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow; opacity: 0.4;" shadow="receive: true"></a-plane>

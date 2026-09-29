@@ -35,10 +35,17 @@
   function cameraForward(cameraEl, target) {
     const out = target || new THREE.Vector3();
     out.set(0, 0, -1);
-    if (cameraEl && cameraEl.object3D) {
-      out.applyQuaternion(cameraEl.object3D.getWorldQuaternion(new THREE.Quaternion()));
-    }
+    if (!cameraEl || !cameraEl.object3D) return out;
+    const q = cameraEl.object3D.getWorldQuaternion(new THREE.Quaternion());
+    out.applyQuaternion(q);
     out.y = 0;
+    // Pointed straight at the pavement (scanning a painted shark), the lens
+    // axis has no horizontal part left. The top edge of the phone then points
+    // the way the visitor faces, so use camera-up instead of a fixed −Z.
+    if (out.lengthSq() < 0.01) {
+      out.set(0, 1, 0).applyQuaternion(q);
+      out.y = 0;
+    }
     if (out.lengthSq() < 0.0001) out.set(0, 0, -1);
     return out.normalize();
   }

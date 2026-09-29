@@ -50,11 +50,15 @@ body {
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* Bottom of the screen, above the chip bars — mid-screen it sat on
+           the visitor's face in selfies and over the content everywhere else. */
         #tap-instruction {
             position: fixed;
-            top: 50%;
+            bottom: 84px;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translateX(-50%);
+            width: max-content;
+            max-width: calc(100vw - 32px);
             background: rgba(0, 109, 117, 0.85);
             backdrop-filter: blur(10px);
             color: white;
@@ -74,10 +78,12 @@ body {
             opacity: 1;
         }
 
+        /* Top-left under the topbar: the bottom of the screen belongs to the
+           drop / photo chip bars. */
         #location-status {
             position: fixed;
             left: 12px;
-            bottom: 18px;
+            top: 64px;
             z-index: 1100;
             max-width: calc(100vw - 24px);
             background: rgba(0, 22, 26, 0.72);

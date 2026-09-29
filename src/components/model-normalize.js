@@ -35,9 +35,14 @@ AFRAME.registerComponent('model-normalize', {
 
   init: function () {
     this.applied = false;
-    const run = () => this.normalize();
-    if (this.el.getObject3D('mesh')) run();
-    this.el.addEventListener('model-loaded', run);
+    if (this.el.getObject3D('mesh')) this.normalize();
+    // A new model-loaded is a new mesh (Photo Mode swaps Sharkie <-> Sammy on
+    // the same entity), so it needs sizing afresh. Returning early here left
+    // the swapped-in mascot at its raw GLB size — "small sometimes".
+    this.el.addEventListener('model-loaded', () => {
+      this.applied = false;
+      this.normalize();
+    });
   },
 
   update: function () {
@@ -46,12 +51,38 @@ AFRAME.registerComponent('model-normalize', {
     if (this.el.getObject3D('mesh')) this.normalize();
   },
 
+  /**
+   * World-space bounds of the model *as it will render*.
+   *
+   * Box3.setFromObject on a rigged (skinned) model uses a bounding box that
+   * three computes once and caches — and on model-loaded that happens before
+   * the skeleton has ever been posed, so it measures garbage. Measured in the
+   * desktop sim: Sharkie "normalized" to 1.9 m actually rendered ~7 m tall and
+   * half below the ground, and the result varied with load timing — the
+   * mascots that were too big on one visit and "small sometimes" on the next.
+   * Posing the skeleton and recomputing first makes the measurement real.
+   */
+  measure: function (mesh) {
+    // Parents first, then updateMatrixWorld down the model: SkinnedMesh only
+    // refreshes its bind-matrix inverse in updateMatrixWorld, not in
+    // updateWorldMatrix, and a stale one skews the skinned bounds.
+    this.el.object3D.updateWorldMatrix(true, false);
+    mesh.updateMatrixWorld(true);
+    mesh.traverse((o) => {
+      if (o.isSkinnedMesh && o.skeleton && typeof o.computeBoundingBox === 'function') {
+        o.skeleton.update();
+        o.computeBoundingBox();
+      }
+    });
+    return new THREE.Box3().setFromObject(mesh);
+  },
+
   normalize: function () {
     if (this.applied) return;
     const mesh = this.el.getObject3D('mesh');
     if (!mesh) return;
 
-    const box = new THREE.Box3().setFromObject(mesh);
+    const box = this.measure(mesh);
     const size = new THREE.Vector3();
     box.getSize(size);
     if (!isFinite(size.y) || size.y <= 0) return;
@@ -66,8 +97,7 @@ AFRAME.registerComponent('model-normalize', {
     if (factor !== 1) mesh.scale.multiplyScalar(factor);
 
     if (this.data.ground) {
-      mesh.updateMatrixWorld(true);
-      const grounded = new THREE.Box3().setFromObject(mesh);
+      const grounded = this.measure(mesh);
       // setFromObject is in world space; convert the lift into mesh-parent units.
       const worldScale = this.el.object3D.getWorldScale(new THREE.Vector3());
       const lift = grounded.min.y / (worldScale.y || 1);

@@ -9,8 +9,7 @@
  * Two things keep it off the phones we just spent a release rescuing:
  *
  * - The model is loaded lazily, on the first tick that could actually produce a
- *   match. Walking the Little Italy block never pays the ~14 MB MobileNet cost,
- *   because the statues own that stretch and the shark cycle is suppressed there.
+ *   match, so Photo and Goalie mode never pay the ~14 MB MobileNet cost.
  * - Inference runs on an interval, not per frame, and every guard is checked
  *   before the frame is even grabbed. The legacy page inferred in a
  *   requestAnimationFrame loop; that is far too hot next to SLAM.
@@ -18,13 +17,18 @@
  * The enrolled embeddings were computed with MobileNet v2 alpha 1.0. Changing
  * the model or alpha changes the feature space and silently invalidates every
  * stored embedding, so loadModel() pins both.
+ *
+ * Sept 28: scanning is on everywhere. Little Italy used to switch it off (the
+ * statues owned that block), which is why the painted sharks there never fired.
+ * GPS proximity no longer spawns sharks either — "no more automatic location
+ * based placements" — so `useGps` defaults to false.
  */
 AFRAME.registerComponent('shark-detector', {
   schema: {
     gpsTargetLat: { type: 'number', default: 37.33564048861824 },
     gpsTargetLng: { type: 'number', default: -121.8978303846544 },
     gpsRadius: { type: 'number', default: 250 },
-    useGps: { type: 'boolean', default: true },
+    useGps: { type: 'boolean', default: false },
     // Camera recognition of the painted sharks. ?vision=0 disables at runtime.
     useVision: { type: 'boolean', default: true },
     visionIntervalMs: { type: 'number', default: 600 },
@@ -125,6 +129,10 @@ AFRAME.registerComponent('shark-detector', {
       this.vision.status = 'off (?vision=0)';
       return;
     }
+    // On-site tuning: shaded paintings (San Pedro Square) may score under the
+    // gate. Try `&visionThreshold=0.4`, read the scores in the debug panel.
+    const thr = parseFloat(params.get('visionThreshold'));
+    if (isFinite(thr) && thr > 0 && thr < 1) this.data.visionThreshold = thr;
     if (!window.SharkEmbeddingDetector || !window.tf || !window.mobilenet) {
       this.vision.status = 'unavailable (tf/mobilenet not loaded)';
       console.warn('[shark-detector] vision libraries missing — skipping');
@@ -172,8 +180,6 @@ AFRAME.registerComponent('shark-detector', {
     if (!this.vision.enabled || !this.vision.video) return false;
     if (document.hidden) return false;
     if (this.state.sharkVisible) return false;
-    // Little Italy runs always-on statues instead of the shark cycle.
-    if (this.state.inLittleItaly) return false;
     if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return false;
     if (performance.now() - this.state.dismissedAt < this.data.visionCooldownMs) return false;
     return true;
@@ -281,8 +287,6 @@ AFRAME.registerComponent('shark-detector', {
         const enteredLittleItaly = inLittleItaly && !this.state.inLittleItaly;
         const leftLittleItaly = !inLittleItaly && this.state.inLittleItaly;
         this.state.inLittleItaly = inLittleItaly;
-        // June 10 redline: Little Italy uses always-on marble statues (handled by
-        // location-experiences) — no wayfinding shark cycle in this corridor.
         this.state.alwaysOn = false;
 
         if (leftLittleItaly) {
@@ -293,13 +297,10 @@ AFRAME.registerComponent('shark-detector', {
         const cooldown = performance.now() - this.state.dismissedAt > 3000;
 
         if (enteredLittleItaly) {
-          console.log("Entered Little Italy — statues take over (no shark cycle)");
-          this.state.sharkVisible = false;
-          this.el.sceneEl.emit('dismissSharkUi');
           this.el.sceneEl.emit('littleItalyEnter', {
             position: { lat: pos.coords.latitude, lng: pos.coords.longitude }
           });
-        } else if (!inLittleItaly && this.state.gpsActive && cooldown && !this.state.sharkVisible) {
+        } else if (this.state.gpsActive && cooldown && !this.state.sharkVisible) {
           this.onSharkFound({
             trigger: 'gps',
             alwaysOn: false,

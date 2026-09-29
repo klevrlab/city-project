@@ -1,4 +1,6 @@
-import '../css/navigation.css';
+// Styles: each page links src/css/navigation.css. Not `import '...css'` —
+// that only works through Vite, and the site must also run served straight
+// from the repo (a GitHub Pages branch build publishes it without a build).
 
 export function initNavigation() {
   // Inject HTML if it doesn't exist

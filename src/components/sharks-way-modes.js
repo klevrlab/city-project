@@ -7,8 +7,11 @@
  *  - Selfie: Flip Camera → front cam + MediaPipe shoulder mount (no page navigate)
  *  - Characters: Sharkie and Sammy everywhere; Athena near Little Italy
  * Goalie Mode: soccer-game with hard-coded puck (Sharkie in goal).
+ *
+ * Styles: shark-ar-8thwall.html links src/css/sharks-way-modes.css. A JS
+ * `import '...css'` only works through Vite; served raw it failed this whole
+ * module, and with it Photo and Goalie mode.
  */
-import '../css/sharks-way-modes.css';
 import { ensureModel, modelSrc, prefetchModels } from '../utils/model-assets.js';
 
 const MODE = {

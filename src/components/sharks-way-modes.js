@@ -14,6 +14,11 @@
  */
 import { ensureModel, modelSrc, prefetchModels } from '../utils/model-assets.js';
 
+/** Field log (assets/js/sharks-way-log.js) — a no-op unless ?debug=1 or ?log=1. */
+const fieldLog = (category, message) => {
+  if (window.SharksWayLog) window.SharksWayLog.add(category, message);
+};
+
 const MODE = {
   WAYFINDING: 'wayfinding',
   PHOTO: 'photo',
@@ -142,8 +147,13 @@ function isCharacterAvailable(id) {
  */
 function reportModelLoad(ent, c, loaded) {
   const loading = `Loading ${c.label}…`;
+  const t0 = performance.now();
   if (!loaded) flashToast(loading, 30000);
-  ent.addEventListener('model-loaded', () => hideToast(loading), { once: true });
+  ent.addEventListener('model-loaded', () => {
+    hideToast(loading);
+    fieldLog('photo', `${c.label} on screen ${Math.round(performance.now() - t0)}ms after the tap` +
+      (loaded ? '' : ' (was still downloading)'));
+  }, { once: true });
   ent.addEventListener('model-error', () => {
     console.warn(`[sharks-way-modes] ${c.label} failed to load`);
     flashToast(`${c.label} didn't load — check your connection and tap again`, 4000);
@@ -214,8 +224,11 @@ function placePhotoMascot(tapPoint, { quiet = false } = {}) {
     } else {
       toPoint.divideScalar(d);
     }
+    const tapped = d;
     d = Math.min(Math.max(d, c.minM), c.maxM);
     point.set(camPos.x + toPoint.x * d, 0, camPos.z + toPoint.z * d);
+    fieldLog('photo', `place ${c.label} at ${d.toFixed(1)}m` +
+      (Math.abs(tapped - d) > 0.05 ? ` (tap was ${tapped.toFixed(1)}m)` : ''));
 
     // Models face +Z: aim +Z from the mascot back at the camera. The old math
     // aimed it along the tap ray, i.e. facing away from the photographer.
@@ -247,6 +260,7 @@ function selectPhotoCharacter(id) {
     return;
   }
   state.photoCharacter = id;
+  fieldLog('photo', `character ${id}`);
   syncPhotoCharacterButtons();
   // Re-place from the original tap rather than swapping the model in place:
   // characters have different distance ranges, and changing gltf-model on the
@@ -356,7 +370,8 @@ function setGoalieUi(on) {
 function pauseXr() {
   try {
     if (window.XR8 && typeof window.XR8.pause === 'function') window.XR8.pause();
-  } catch (e) { /* ignore */ }
+    fieldLog('xr', 'paused for selfie');
+  } catch (e) { fieldLog('warn', `XR8.pause threw: ${e && e.message}`); }
   const scene = document.getElementById('xrscene');
   if (scene) scene.classList.add('sw-xr-paused');
 }
@@ -366,7 +381,8 @@ function resumeXr() {
   if (scene) scene.classList.remove('sw-xr-paused');
   try {
     if (window.XR8 && typeof window.XR8.resume === 'function') window.XR8.resume();
-  } catch (e) { /* ignore */ }
+    fieldLog('xr', 'resumed after selfie');
+  } catch (e) { fieldLog('warn', `XR8.resume threw: ${e && e.message}`); }
 }
 
 function loadScript(src) {
@@ -421,17 +437,23 @@ function applySelfieCharacter() {
   if (!src || viewer.getAttribute('src') === src) return;
   // model-viewer fetches the file itself; say so while a big one (Athena) loads.
   const loading = `Loading ${c.label}…`;
+  const t0 = performance.now();
   flashToast(loading, 30000);
-  const done = () => {
+  const cleanup = () => {
     hideToast(loading);
-    viewer.removeEventListener('load', done);
+    viewer.removeEventListener('load', loaded);
     viewer.removeEventListener('error', failed);
   };
-  const failed = () => {
-    done();
+  const loaded = () => {
+    cleanup();
+    fieldLog('selfie', `${c.label} shown on shoulder in ${Math.round(performance.now() - t0)}ms`);
+  };
+  const failed = (e) => {
+    cleanup();
+    fieldLog('error', `selfie model failed: ${c.label} ${e && e.detail ? JSON.stringify(e.detail.type || e.detail) : ''}`);
     flashToast(`${c.label} didn't load — check your connection`, 4000);
   };
-  viewer.addEventListener('load', done);
+  viewer.addEventListener('load', loaded);
   viewer.addEventListener('error', failed);
   viewer.setAttribute('src', src);
 }
@@ -463,6 +485,7 @@ function onSelfiePoseResults(results) {
   // The hint is only for when there are no shoulders to stand on; once there
   // are, it would just cover the photo.
   setSelfieHint(!results.poseLandmarks);
+  logPoseState(!!results.poseLandmarks);
   if (!results.poseLandmarks) {
     overlay.classList.remove('visible');
     state.selfie.lastRect = null;
@@ -507,6 +530,21 @@ function onSelfiePoseResults(results) {
   state.selfie.lastRect = { x: left0, y: top0, w, h };
 }
 
+/** Field log: first pose, then found/lost changes at most every 2 s. */
+function logPoseState(found) {
+  const s = state.selfie;
+  if (found && !s.firstPoseLogged) {
+    s.firstPoseLogged = true;
+    fieldLog('selfie', `first pose ${Math.round(performance.now() - (s.startedAt || 0))}ms after camera start`);
+  }
+  const t = performance.now();
+  if (found !== s.poseFound && (!s.poseLoggedAt || t - s.poseLoggedAt > 2000)) {
+    s.poseFound = found;
+    s.poseLoggedAt = t;
+    fieldLog('selfie', found ? 'pose found' : 'pose lost (no shoulders in view)');
+  }
+}
+
 function setSelfieHint(show) {
   const hint = document.getElementById('sw-selfie-hint');
   if (hint) hint.classList.toggle('visible', show);
@@ -516,9 +554,12 @@ async function startSelfieMode() {
   setInstruction('Selfie Mode — line up shoulders, then Snap', true);
   flashToast('Starting front camera…');
   setSelfieHint(true);
+  const t0 = performance.now();
+  fieldLog('selfie', `start (${state.photoCharacter})`);
 
   try {
     await ensureSelfieScripts();
+    fieldLog('selfie', `libraries ready in ${Math.round(performance.now() - t0)}ms`);
   } catch (e) {
     console.warn('Selfie scripts failed', e);
     flashToast('Could not load selfie libraries');
@@ -541,7 +582,13 @@ async function startSelfieMode() {
     state.selfie.stream = stream;
     video.srcObject = stream;
     await video.play();
+    const track = stream.getVideoTracks()[0];
+    const s = track && track.getSettings ? track.getSettings() : {};
+    fieldLog('selfie', `front camera ${s.width}x${s.height} ${s.facingMode || ''} ${s.frameRate ? Math.round(s.frameRate) + 'fps' : ''}`);
   } catch (e) {
+    // NotAllowedError = permission; NotReadableError = the camera is still
+    // held (by 8th Wall's session); OverconstrainedError = no front camera.
+    fieldLog('error', `front camera failed: ${e && e.name}: ${e && e.message}`);
     console.warn('Front camera error', e);
     flashToast('Front camera blocked — check permissions');
     stopSelfieMode();
@@ -549,9 +596,12 @@ async function startSelfieMode() {
   }
 
   if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
+    fieldLog('error', 'selfie: MediaPipe Pose/Camera missing after load');
     flashToast('Pose tracker unavailable');
     return;
   }
+  state.selfie.startedAt = performance.now();
+  state.selfie.firstPoseLogged = false;
 
   const pose = new Pose({
     locateFile: (f) => `${MEDIAPIPE_POSE_URL}/${f}`
@@ -575,7 +625,14 @@ async function startSelfieMode() {
     height: 720
   });
   state.selfie.camera = camera;
-  await camera.start();
+  try {
+    await camera.start();
+  } catch (e) {
+    fieldLog('error', `selfie: pose camera failed to start: ${e && e.name}: ${e && e.message}`);
+    flashToast('Selfie camera failed — try Flip again');
+    stopSelfieMode();
+    return;
+  }
   setInstruction('Selfie Mode — Snap to capture · Flip returns to place', true);
   // Bottom of a selfie is where the visitor is; don't leave text sitting there.
   setTimeout(() => {
@@ -586,11 +643,12 @@ async function startSelfieMode() {
 }
 
 function stopSelfieMode() {
+  fieldLog('selfie', 'stop — back camera');
   try {
     if (state.selfie.camera && typeof state.selfie.camera.stop === 'function') {
       state.selfie.camera.stop();
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { fieldLog('warn', `selfie camera stop threw: ${e && e.message}`); }
   state.selfie.camera = null;
   state.selfie.pose = null;
   state.selfie.lastRect = null;
@@ -634,16 +692,49 @@ function hidePreview() {
   if (preview) preview.classList.remove('visible');
 }
 
+/**
+ * Field log: is the photo actually a picture? Samples it at 16×16 for mean
+ * brightness and how much is transparent — a capture that lost the camera
+ * feed comes back black or see-through, which only shows up on a phone.
+ */
+function logCapture(kind, canvas, dataUrl, t0) {
+  if (!window.SharksWayLog || !window.SharksWayLog.enabled) return;
+  let quality = '';
+  try {
+    const s = document.createElement('canvas');
+    s.width = s.height = 16;
+    const ctx = s.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(canvas, 0, 0, 16, 16);
+    const px = ctx.getImageData(0, 0, 16, 16).data;
+    let lum = 0;
+    let clear = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      lum += (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255;
+      if (px[i + 3] < 16) clear++;
+    }
+    quality = `, brightness ${(lum / 256).toFixed(2)}, transparent ${Math.round(clear / 2.56)}%`;
+  } catch (e) {
+    quality = `, sample failed: ${e && e.message}`;
+  }
+  fieldLog('photo', `${kind} capture ${canvas.width}x${canvas.height}, ${Math.round(dataUrl.length * 0.75 / 1024)}KB ` +
+    `in ${Math.round(performance.now() - t0)}ms${quality}`);
+}
+
 function capturePlaceMode() {
   const scene = document.querySelector('a-scene');
   const canvas = scene && (scene.canvas || scene.querySelector('canvas'));
   if (!canvas) {
+    fieldLog('error', 'photo capture: no AR canvas');
     flashToast('AR canvas not ready');
     return;
   }
+  const t0 = performance.now();
   try {
-    showPreview(canvas.toDataURL(PHOTO_MIME, PHOTO_QUALITY));
+    const url = canvas.toDataURL(PHOTO_MIME, PHOTO_QUALITY);
+    logCapture('place-mode', canvas, url, t0);
+    showPreview(url);
   } catch (e) {
+    fieldLog('error', `photo capture failed: ${e && e.name}: ${e && e.message}`);
     console.warn('Place capture failed', e);
     flashToast('Capture failed (try again)');
   }
@@ -659,9 +750,11 @@ async function captureSelfieMode() {
   const video = document.getElementById('sw-selfie-video');
   const viewer = document.getElementById('sw-selfie-viewer');
   if (!video || !video.videoWidth) {
+    fieldLog('error', 'selfie capture: camera not ready');
     flashToast('Camera not ready');
     return;
   }
+  const t0 = performance.now();
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = window.innerWidth;
@@ -687,11 +780,16 @@ async function captureSelfieMode() {
       await img.decode();
       ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
     } catch (e) {
+      fieldLog('error', `selfie mascot capture failed: ${e && e.message}`);
       console.warn('Selfie mascot capture failed', e);
     }
+  } else {
+    fieldLog('photo', 'selfie capture without a mascot (no shoulders detected at the moment of Snap)');
   }
 
-  showPreview(out.toDataURL(PHOTO_MIME, PHOTO_QUALITY));
+  const url = out.toDataURL(PHOTO_MIME, PHOTO_QUALITY);
+  logCapture('selfie', out, url, t0);
+  showPreview(url);
 }
 
 function snapPhoto() {
@@ -718,6 +816,7 @@ function savePreview() {
   a.href = img.src;
   a.download = `sharks-way-photo-${Date.now()}.${previewExtension(img.src)}`;
   a.click();
+  fieldLog('photo', 'saved (download)');
   hidePreview();
   flashToast('Saved');
 }
@@ -749,12 +848,16 @@ function sharePreview() {
   // Desktop browsers often have navigator.share but can't share files; that
   // used to throw into the "user cancelled" catch and do nothing at all.
   if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [file] }))) {
+    fieldLog('photo', 'share not supported for files on this browser');
     flashToast('Sharing isn\'t supported here — use Save');
     return;
   }
-  navigator.share({ files: [file], title: 'Sharks Way Photo' }).catch((e) => {
-    if (e && e.name !== 'AbortError') flashToast('Share failed — use Save');
-  });
+  navigator.share({ files: [file], title: 'Sharks Way Photo' })
+    .then(() => fieldLog('photo', 'shared'))
+    .catch((e) => {
+      fieldLog('photo', `share ended: ${e && e.name}`);
+      if (e && e.name !== 'AbortError') flashToast('Share failed — use Save');
+    });
 }
 
 export function getSharksWayMode() {

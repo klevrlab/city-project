@@ -26,6 +26,11 @@
  */
 import { prefetchModels } from '../utils/model-assets.js';
 
+/** Field log (assets/js/sharks-way-log.js) — a no-op unless ?debug=1 or ?log=1. */
+const fieldLog = (category, message) => {
+  if (window.SharksWayLog) window.SharksWayLog.add(category, message);
+};
+
 /**
  * Real-world sizes, in metres. Models are normalized to these on load (see
  * model-normalize.js) — none of the source GLBs share a unit convention.
@@ -256,7 +261,18 @@ AFRAME.registerComponent('location-experiences', {
     this.userLat = lat;
     this.userLng = lng;
     this.accuracy = accuracy;
+    this.logFix(lat, lng, accuracy);
     this.refreshAvailable();
+  },
+
+  /** A fix every 15 s, or sooner after moving 10 m or a big accuracy change. */
+  logFix: function (lat, lng, accuracy) {
+    const t = performance.now();
+    const last = this._lastLoggedFix;
+    const moved = last ? this.haversineM(last.lat, last.lng, lat, lng) : Infinity;
+    if (last && t - last.t < 15000 && moved < 10 && Math.abs((accuracy || 0) - (last.acc || 0)) < 10) return;
+    this._lastLoggedFix = { t, lat, lng, acc: accuracy };
+    fieldLog('gps', `${lat.toFixed(6)},${lng.toFixed(6)} ±${Math.round(accuracy || 0)}m`);
   },
 
   /** Recompute which drops are on offer from the latest fix. */
@@ -295,6 +311,10 @@ AFRAME.registerComponent('location-experiences', {
     }
 
     if (changed) {
+      if (this.userLat != null) {
+        fieldLog('loc', `${near ? 'near ' + near.label : 'not near a location'} · ` +
+          LOCATIONS.map((l) => `${l.id} ${Math.round(this.distanceTo(l, this.userLat, this.userLng))}m`).join(', '));
+      }
       this.renderDropBar();
       if (near) this.flashHint(`${near.label} — pick a drop below, then tap the ground`);
       // Photo Mode offers Athena only here; it listens for this.
@@ -392,6 +412,9 @@ AFRAME.registerComponent('location-experiences', {
   },
 
   drop: function (id, point) {
+    const cam = document.getElementById('camera');
+    const from = cam ? cam.object3D.getWorldPosition(new THREE.Vector3()) : null;
+    fieldLog('drop', `${id}` + (from ? ` ${Math.hypot(point.x - from.x, point.z - from.z).toFixed(1)}m from camera` : ''));
     // Normally prefetched on arrival; this covers demo unlocks and debug drops.
     prefetchModels(DROP_MODELS[id]);
     if (id === 'athena') this.placeAthena(point);
@@ -492,8 +515,13 @@ AFRAME.registerComponent('location-experiences', {
   announce: function (el, assetId, name, doneText) {
     const item = document.getElementById(assetId);
     const pending = item && !item.hasLoaded;
+    const t0 = performance.now();
     this.flashHint(pending ? `Loading ${name}…` : doneText, pending ? 30000 : undefined);
-    if (pending) el.addEventListener('model-loaded', () => this.flashHint(doneText), { once: true });
+    el.addEventListener('model-loaded', () => {
+      fieldLog('drop', `${name} on screen ${Math.round(performance.now() - t0)}ms after the tap` +
+        (pending ? ' (was still downloading)' : ''));
+      if (pending) this.flashHint(doneText);
+    }, { once: true });
     el.addEventListener('model-error', () => {
       console.warn(`[location-experiences] ${name} failed to load`);
       this.flashHint(`${name} didn't load — check your connection and tap again`);
@@ -651,18 +679,23 @@ AFRAME.registerComponent('location-experiences', {
     // Each jump finishes once. Without the flag, the fallback timer of a jump
     // that had already ended cleared jumpBusy halfway through the *next* one.
     let done = false;
-    const finish = () => {
+    const t0 = performance.now();
+    const finish = (how) => {
       if (done) return;
       done = true;
+      fieldLog('drop', `jump ended (${how}) after ${Math.round(performance.now() - t0)}ms`);
       if (root.parentNode) root.parentNode.removeChild(root);
       this.jumpBusy = false;
     };
-    ent.addEventListener('animation-finished', () => setTimeout(finish, 300), { once: true });
-    ent.addEventListener('model-error', finish, { once: true });
+    ent.addEventListener('animation-finished', () => setTimeout(() => finish('animation done'), 300), { once: true });
+    ent.addEventListener('model-error', () => finish('model error'), { once: true });
     // Never strand the jump busy if the clip doesn't report finishing. Timed
     // from the model arriving, so a slow first download can't cut it short.
-    ent.addEventListener('model-loaded', () => setTimeout(finish, 9000), { once: true });
-    setTimeout(finish, 30000);
+    ent.addEventListener('model-loaded', () => {
+      fieldLog('drop', `jump shark on screen ${Math.round(performance.now() - t0)}ms after the tap`);
+      setTimeout(() => finish('9 s fallback'), 9000);
+    }, { once: true });
+    setTimeout(() => finish('30 s fallback — model never arrived'), 30000);
   },
 
   // ---- SAP party ------------------------------------------------------------

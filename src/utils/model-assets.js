@@ -51,8 +51,23 @@ export function ensureModel(id) {
   const item = document.createElement('a-asset-item');
   item.setAttribute('id', id);
   item.setAttribute('src', src);
+  logDownload(item, id);
   assets.appendChild(item);
   return item;
+}
+
+/** Field log: how long each on-demand model took to arrive, or that it didn't. */
+function logDownload(item, id) {
+  const L = window.SharksWayLog;
+  if (!L || !L.enabled) return;
+  const t0 = performance.now();
+  L.add('model', `fetching ${id}`);
+  item.addEventListener('loaded', () => {
+    L.add('model', `fetched ${id} in ${Math.round(performance.now() - t0)}ms`);
+  }, { once: true });
+  item.addEventListener('error', (e) => {
+    L.add('error', `download failed: ${id} (${(e.detail && e.detail.xhr && e.detail.xhr.status) || 'network'})`);
+  }, { once: true });
 }
 
 export function prefetchModels(ids) {

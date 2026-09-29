@@ -187,3 +187,25 @@
   pointer-events: none;
 }
 #dbg-toast.dbg-show { opacity: 1; }
+
+/* LOG tab — field log controls (assets/js/sharks-way-log.js). */
+.dbg-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.dbg-btns button {
+  flex: 1 1 45%;
+  padding: 10px 4px;
+  background: rgba(255, 196, 0, 0.14);
+  border: 1px solid rgba(255, 196, 0, 0.5);
+  border-radius: 6px;
+  color: #ffe9a8;
+  font-size: 11px;
+  font-weight: 700;
+}
+#dbg-log-lines .dbg-log {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px;
+}

@@ -196,6 +196,7 @@ AFRAME.registerComponent('shark-detector', {
       if (this.vision.loading) return;
       this.vision.loading = true;
       this.vision.status = 'loading model';
+      const loadStart = performance.now();
       SED.loadModel((s) => { this.vision.status = s; })
         .then((model) => {
           this.vision.model = model;
@@ -203,7 +204,8 @@ AFRAME.registerComponent('shark-detector', {
           return SED.loadEmbeddings(state, model, {}).then(() => {
             this.vision.embeddings = state;
             this.vision.status = 'watching';
-            console.log('[shark-detector] vision ready — watching for painted sharks');
+            console.log(`[shark-detector] vision ready in ${Math.round(performance.now() - loadStart)}ms — ` +
+              `watching for painted sharks (threshold ${this.data.visionThreshold})`);
           });
         })
         .catch((err) => {

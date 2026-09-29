@@ -256,6 +256,28 @@ Current targets (ceiling ≈ one storey):
 
 Wayfinding swim-through sharks (`shark-animator.js`, ~0.4 scale) are intentionally left as tuned.
 
+## Field Log (on-device debugging)
+
+`assets/js/sharks-way-log.js` — a classic script loaded **first** in every page's `<head>` (modules
+run too late to see a CDN script fail). Inert unless the URL has `?debug=1` or `?log=1`; the choice
+sticks for the tab session, `?log=0` turns it off.
+
+Records: console output, JS errors, failed script/image loads, every file fetched (size, time,
+cache), 8th Wall events (`xrloaded`, `realityready`, `realityerror`, `camerastatuschange`), model
+loads/errors, page lifecycle, and a stats line every 5 s (fps, JS heap, GPU textures/geometries,
+draw calls, XR state, mode, scan status + best score vs threshold, drops on offer). App code adds
+lines with `SharksWayLog.add(category, message)` — GPS fixes (throttled), near/far changes with
+distances, drops and time-to-screen, on-demand model fetches, photo placements, captures (with a
+brightness/transparency sample to catch black photos), selfie camera/pose events.
+
+Kept in localStorage (current page load + 2 earlier), so a crash or reload doesn't lose it; a load
+that never reached `pagehide` is flagged **ENDED WITHOUT UNLOADING** (on iPhone, usually the tab
+killed for memory). Nothing leaves the phone until someone taps Share/Download. Contains GPS.
+
+To get a log: `shark-ar-8thwall.html?debug=1` → 🛠 → **LOG** → SHARE LOG (AirDrop / Messages /
+Files) or DOWNLOAD; **MARK A MOMENT** drops a note into the log when something looks wrong. On other
+pages (or with `?log=1`) a small **LOG** button sits bottom-left with the same actions.
+
 ## Placement Debug Mode
 
 `shark-ar-8thwall.html?debug=1` loads `src/components/debug-placement.js` — an on-device HUD for

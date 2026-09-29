@@ -20,6 +20,8 @@
          for a slow CDN to stall the page. -->
 
     <!-- Core AI Libraries -->
+    <!-- Field log: first script on the page so it sees everything; inert unless ?debug=1 or ?log=1. -->
+    <script src="./assets/js/sharks-way-log.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1"></script>
     <script type="module" src="./src/utils/shark-embedding-detector.js"></script>

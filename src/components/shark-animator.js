@@ -201,6 +201,7 @@ AFRAME.registerComponent('shark-animator', {
   // so visitors can circle it. Replaces any running swim-through cycle.
   dropShark: function (targetPoint) {
     if (!targetPoint) return;
+    if (window.SharksWayLog) window.SharksWayLog.add('drop', 'shark (looping Jimmy)');
     this.stopCycle();          // clear any active swim-through + its timers
     this.isRunning = false;    // dropped shark is standalone, not part of the cycle
 
@@ -280,6 +281,9 @@ AFRAME.registerComponent('shark-animator', {
 
     const experience = this.experiences[this.currentIndex];
     this.currentIndex = (this.currentIndex + 1) % this.experiences.length;
+    if (window.SharksWayLog) {
+      window.SharksWayLog.add('swim', `swim-through ${experience.label}`);
+    }
 
     const ent = document.createElement('a-entity');
     ent.addEventListener('model-loaded', () => {

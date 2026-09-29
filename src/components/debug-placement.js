@@ -121,12 +121,26 @@ AFRAME.registerComponent('debug-placement', {
           <button data-tab="models" class="dbg-tab">MODELS</button>
           <button data-tab="objects" class="dbg-tab">OBJECTS</button>
           <button data-tab="move" class="dbg-tab">MOVE</button>
+          <button data-tab="log" class="dbg-tab">LOG</button>
         </div>
         <div id="dbg-body">
           <section data-pane="status" class="dbg-pane"></section>
           <section data-pane="models" class="dbg-pane dbg-hidden"></section>
           <section data-pane="objects" class="dbg-pane dbg-hidden"></section>
           <section data-pane="move" class="dbg-pane dbg-hidden"></section>
+          <section data-pane="log" class="dbg-pane dbg-hidden">
+            <div class="dbg-dim">Everything this page did — errors, downloads, drops, scan
+              scores, GPS, fps/memory every 5 s. Stays on the phone until you share it.
+              Includes GPS positions.</div>
+            <div class="dbg-row"><span id="dbg-log-info">–</span></div>
+            <div class="dbg-btns">
+              <button type="button" data-log="mark">MARK A MOMENT</button>
+              <button type="button" data-log="share">SHARE LOG</button>
+              <button type="button" data-log="download">DOWNLOAD</button>
+              <button type="button" data-log="clear">CLEAR</button>
+            </div>
+            <div id="dbg-log-lines"></div>
+          </section>
         </div>
         <div id="dbg-foot">
           <button id="dbg-save">SAVE</button>
@@ -149,6 +163,25 @@ AFRAME.registerComponent('debug-placement', {
 
     wrap.querySelectorAll('.dbg-tab').forEach((btn) => {
       btn.addEventListener('click', () => this.showTab(btn.getAttribute('data-tab')));
+    });
+
+    // Field log (assets/js/sharks-way-log.js). The buttons are built once —
+    // render() only refreshes the text, so a tap can't land on a button that
+    // was just replaced.
+    wrap.querySelectorAll('[data-log]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const L = window.SharksWayLog;
+        if (!L || !L.enabled) { this.toast('Field log not loaded'); return; }
+        const act = btn.getAttribute('data-log');
+        if (act === 'mark') { L.mark(); this.toast('Marked'); }
+        else if (act === 'share') L.share();
+        else if (act === 'download') L.download();
+        else if (act === 'clear' && window.confirm('Delete the stored log on this phone?')) {
+          L.clear();
+          this.toast('Log cleared');
+        }
+        this.render();
+      });
     });
 
     wrap.querySelector('#dbg-save').addEventListener('click', () => this.saveSelected());
@@ -322,7 +355,26 @@ AFRAME.registerComponent('debug-placement', {
     if (this.tab === 'status') this.renderStatus();
     else if (this.tab === 'models') this.renderModels();
     else if (this.tab === 'objects') this.renderObjects();
+    else if (this.tab === 'log') this.renderLog();
     else this.renderMove();
+  },
+
+  renderLog: function () {
+    const L = window.SharksWayLog;
+    const info = document.getElementById('dbg-log-info');
+    const box = document.getElementById('dbg-log-lines');
+    if (!info || !box) return;
+    if (!L || !L.enabled) {
+      info.textContent = 'Field log not loaded (assets/js/sharks-way-log.js)';
+      box.innerHTML = '';
+      return;
+    }
+    const entries = L.entries();
+    info.textContent = `${entries.length} lines this page · ${L.sessions()} page load(s) stored`;
+    box.innerHTML = entries.slice(-60).reverse().map((e) => {
+      const cls = e[1] === 'error' ? 'dbg-error' : e[1] === 'warn' ? 'dbg-warn' : '';
+      return `<div class="dbg-log ${cls}">+${(e[0] / 1000).toFixed(1)}s [${e[1]}] ${escapeHtml(e[2])}</div>`;
+    }).join('');
   },
 
   pane: function (name) {

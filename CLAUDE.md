@@ -328,14 +328,9 @@ wrong — Sharkie at "1.9 m" rendered ~7 m tall, half underground.
 - CSS is per-page (e.g. `src/css/shark-ar-8thwall-styles.css` for `shark-ar-8thwall.html`) plus `shared-styles.css`.
 - `src/app.js` is the 8th Wall entry point; other HTML pages inline or script-tag their own logic.
 - `8w-distributed-engine/` is currently a placeholder (`.gitkeep`).
-- Deploy: two paths reach https://klevrlab.github.io/city-project/, and whichever ran last is live.
-  1. `.github/workflows/deploy-pages.yml` — Vite build of **main**, on every push to main.
-  2. GitHub's legacy branch build — Pages settings still name `feat/soccer-8thwall-prototype` as
-     the source, so a push there publishes that branch's files **unbuilt**. Since Sept 29 that
-     branch mirrors main (`git push origin main:feat/soccer-8thwall-prototype`), so both paths
-     publish the same site. Keep it that way until an admin sets Settings → Pages → Source to
-     "GitHub Actions".
-- Because of (2) the site must also work **served raw**: no `import './x.css'` in JS (link the
+- Deploy: `.github/workflows/deploy-pages.yml` builds **main** and publishes it to GitHub Pages
+  (Pages source = GitHub Actions since Sept 29, 2026; other branches can't deploy).
+- The site also still works **served raw** (useful for `python3 -m http.server`): no `import './x.css'` in JS (link the
   stylesheet in the HTML — Vite bundles it the same), no bare npm imports, and `.nojekyll` stays at
   the root. Test with the `sharks-way-static` launch config (plain `python3 -m http.server`).
 - `sharks-way-dist` launch config serves the production build (`vite preview`, :4173).

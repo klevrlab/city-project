@@ -96,8 +96,12 @@ city-project/
 1. ~~**sharks-way.html** — TF.js + MobileNet AI shark painting detection~~ — **retired**; the MobileNet page now redirects to `shark-ar-8thwall.html` (the public `sharks-way.html` URL is preserved for the SJSU landing-page link).
 2. **shark-ar-8thwall.html** — 8th Wall Wayfinding. Per the **June 10, 2026 redline**, the cycle is **Maria + Jimmy only**, appearing alternately when the camera recognises a painted shark (approach from behind → pause → swim off, no tap). Tapping the ground "drops a shark" — a single Jimmy that loops in place and stays so visitors can walk around it. Stella, Sharkie Waving, and the Diving Shark were removed from this cycle (Sharkie → selfie feature; Diving → jump drops; Stella → retired).
    **Sept 28 "final touches" (Rhonda): no more automatic location-based placements.** GPS no longer spawns or plants anything; scanning works everywhere (it used to be switched off in Little Italy). GPS only decides which extra *tap-to-drop* options the bottom drop bar offers (`src/components/location-experiences.js`, 75 m radius): Little Italy → Athena + Leaning Tower, Guadalupe River → river jump, SAP Center → "Drop a Party" (dancing mascots at the tap, a pod of sharks circling the visitor at 8 m, a jumping shark). Drops land where the visitor taps — no compass involved.
-3. **location-tour.html** — Leaflet.js GPS checkpoint tour along the corridor
-4. **selfie-ar.html** — MediaPipe shoulder-mount selfie with Sammy Spartan / Sharkie
+3. **location-tour.html** — Leaflet.js GPS checkpoint tour along the corridor (AR.js 3.4.8 location-based,
+   pinned on jsDelivr). Stops and event copy come from `data/shark-locations.json` — still the March 2026
+   "Free Throw at SAP Center" event as of Sept 29; update it when the next event is set.
+4. **selfie-ar.html** — standalone MediaPipe shoulder-mount selfie with Sammy / Sharkie (`?character=sharkey`).
+   Its placement, capture and share are a copy of Photo Mode's selfie in `sharks-way-modes.js`
+   (cover-crop mapping, box sized to the screen, photo = what's on screen) — change them together.
 5. **mural-ar.html** — Japantown Living Mural: open-source MindAR image tracking + GPS gate (single compiled target — the front relief — in `assets/targets/japan-am.mind`; multiple similar bronze panels cross-matched and caused phantom locks). Loads a **custom loose-threshold MindAR build** (`assets/vendor/mindar-image-aframe.custom.js`, rebuilt via `npm run build-tracker` in `tools/mind-compile/`) — detection/tracking confidence gates are deliberately permissive ("always shows something" > "always the right panel"), and `mural-plane.js` holds the last pose for 2.5s after tracking drops.
 
 > Note: the AR.js marker demo (`marker-demo.html`) was removed during the Phase II consolidation.

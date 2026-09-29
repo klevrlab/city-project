@@ -81,6 +81,14 @@ Open-source image-target AR over the Japanese American Internment Memorial relie
 **Tech:** 8th Wall WebAR + A-Frame
 Swipe-to-kick soccer mini-game with a procedural net, post/crossbar bounce, and a Sharkie goalie.
 
+## Field Testing
+
+Add `?debug=1` to the AR page URL on a phone (`?log=1` for just a small LOG button) and the app keeps
+a log of everything it does — errors, downloads, GPS, drops, scan scores, photos, fps/memory. Tap
+**MARK A MOMENT** when something looks wrong, then **SHARE LOG** and send the `.txt` to the dev team.
+The log survives crashes and reloads, and never leaves the phone unless you share it. `?scanModel=f32`
+compares painted-shark scanning with the full-precision model.
+
 ## Requirements
 
 - **HTTPS:** Required for camera and GPS access

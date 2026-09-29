@@ -167,7 +167,9 @@ AFRAME.registerComponent('tour-ui', {
         attributionControl: true
       }).setView([37.3352, -121.8811], 13);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // OSM tile policy: credit "OpenStreetMap contributors", no {s} subdomains.
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
       }).addTo(this.map);
     };

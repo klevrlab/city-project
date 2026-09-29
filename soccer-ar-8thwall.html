@@ -36,6 +36,7 @@
     <script type="module" src="./src/components/soccer-game.js"></script>
     <script type="module" src="./src/components/net-shader.js"></script>
     <script type="module" src="./src/components/ball-shader.js"></script>
+    <script type="module" src="./src/components/sun-follow.js"></script>
     <script type="module" src="./src/app.js"></script>
 
     <link rel="stylesheet" href="./src/css/soccer-ar-8thwall-styles.css" />
@@ -45,7 +46,7 @@
 <body>
     <div id="topbar">
         <a href="./index.html" class="back" aria-label="Back to home">&larr;</a>
-        <h1>Soccer AR Prototype</h1>
+        <h1>Soccer AR</h1>
         <span id="timer" class="pill" data-ui-overlay>00:30</span>
         <span id="score" class="pill" data-ui-overlay>Goals 0 / 0</span>
     </div>
@@ -69,7 +70,9 @@
 
         <!-- Lighting + shadows -->
         <a-entity light="type: ambient; intensity: 0.55;"></a-entity>
-        <a-entity light="type: directional; castShadow: true; intensity: 0.85; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraTop: 15; shadowCameraBottom: -15; shadowCameraRight: 15; shadowCameraLeft: -15; target: #camera" position="5 10 5"></a-entity>
+        <!-- sun-follow + shadowBias: same fix as the main page for the striped
+             "funny overlay" (shadow acne once you walk away from where it loaded). -->
+        <a-entity light="type: directional; castShadow: true; intensity: 0.85; shadowMapHeight: 2048; shadowMapWidth: 2048; shadowCameraTop: 15; shadowCameraBottom: -15; shadowCameraRight: 15; shadowCameraLeft: -15; shadowBias: -0.0005; target: #camera" position="5 10 5" sun-follow></a-entity>
 
         <!-- Shadow Ground Plane (Clickable for placement) -->
         <a-plane id="ground" class="clickable" position="0 0 0" rotation="-90 0 0" width="1000" height="1000" material="shader: shadow; opacity: 0.4;" shadow="receive: true"></a-plane>

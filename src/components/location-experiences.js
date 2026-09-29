@@ -231,8 +231,14 @@ AFRAME.registerComponent('location-experiences', {
     this.watchId = navigator.geolocation.watchPosition(
       (pos) => this.onGps(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
       (err) => {
-        console.warn('[location-experiences] GPS', err);
-        this.setStatus(`Location: blocked (${err && err.message ? err.message : 'error'})`);
+        console.warn('[location-experiences] GPS', err && err.code, err && err.message);
+        // 1 = permission denied (stays that way); 2 / 3 = no fix yet or a
+        // timeout, and watchPosition keeps trying — not "blocked".
+        if (err && err.code === 1) {
+          this.setStatus('Location off — allow it for the Little Italy, river & SAP drops');
+        } else if (this.userLat == null) {
+          this.setStatus('Location: searching for GPS…');
+        }
       },
       { enableHighAccuracy: true, maximumAge: 1500, timeout: 20000 }
     );

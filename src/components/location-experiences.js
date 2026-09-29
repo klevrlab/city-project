@@ -772,7 +772,9 @@ AFRAME.registerComponent('location-experiences', {
     sharks.forEach((s) => {
       const ent = document.createElement('a-entity');
       ent.setAttribute('gltf-model', s.model);
-      this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false`);
+      // Centred, so the body rides the circle nose-first instead of trailing
+      // 2–3 m off it and crabbing round the ring.
+      this.sizeTo(ent, `maxDim: ${SHARK_MAX_DIM_M}; ground: false; center: true`);
       ent.setAttribute('animation-mixer', 'loop: repeat; timeScale: 1.0');
       // No shadows for the ring: at 1.6 m up and 8 m out they're barely seen,
       // and every caster is drawn a second time into the shadow map — the

@@ -30,7 +30,11 @@ AFRAME.registerComponent('model-normalize', {
   schema: {
     height: { type: 'number', default: 0 },
     maxDim: { type: 'number', default: 0 },
-    ground: { type: 'boolean', default: true }
+    ground: { type: 'boolean', default: true },
+    // Put the model's body (bounding-box centre) over the entity in X/Z. For
+    // models whose file origin sits off the body — the shark GLBs are ~1.8 m
+    // off at swim scale — so a path or a turn is followed by the body itself.
+    center: { type: 'boolean', default: false }
   },
 
   init: function () {
@@ -95,6 +99,13 @@ AFRAME.registerComponent('model-normalize', {
     }
 
     if (factor !== 1) mesh.scale.multiplyScalar(factor);
+
+    if (this.data.center) {
+      const c = this.measure(mesh).getCenter(new THREE.Vector3());
+      this.el.object3D.worldToLocal(c);
+      mesh.position.x -= c.x;
+      mesh.position.z -= c.z;
+    }
 
     if (this.data.ground) {
       const grounded = this.measure(mesh);

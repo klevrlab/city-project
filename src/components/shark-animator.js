@@ -5,9 +5,7 @@ AFRAME.registerComponent('shark-animator', {
   schema: {
     triggerDelayMs: { type: 'number', default: 1200 },
     minPingCount: { type: 'number', default: 1 },
-    scale: { type: 'vec3', default: { x: 0.4, y: 0.4, z: 0.4 } },
-    // Soft stand-in for "always swim West toward SAP" until compass lock exists.
-    preferWestSwim: { type: 'boolean', default: true }
+    scale: { type: 'vec3', default: { x: 0.4, y: 0.4, z: 0.4 } }
   },
 
   init: function () {
@@ -235,14 +233,13 @@ AFRAME.registerComponent('shark-animator', {
     const startY = -0.6;
     const hoverY = 0.95;
 
-    // Face the dropped shark toward the viewer. The model's nose is +Z, so
-    // aim +Z from the shark back at the camera (the old math aimed it away).
+    // Side-on to the viewer, nose to their right: a shark swimming forward in
+    // place. Nose-on it read as a shark swimming at you that never arrives.
     let facingYaw = 0;
     const cam = document.getElementById('camera');
-    if (cam) {
-      const dir = new THREE.Vector3().subVectors(cam.object3D.position, targetPoint);
-      dir.y = 0;
-      if (dir.lengthSq() > 0.01) facingYaw = Math.atan2(dir.x, dir.z) * (180 / Math.PI);
+    if (cam && window.MathUtils) {
+      const right = window.MathUtils.cameraRight(cam);
+      facingYaw = Math.atan2(right.x, right.z) * (180 / Math.PI);
     }
 
     const ent = document.createElement('a-entity');
@@ -476,10 +473,14 @@ AFRAME.registerComponent('shark-animator', {
       return;
     }
 
-    // Default motion (Maria / Jimmy): enter center, hover, swim through.
-    // Optional west-toward-SAP bias: if preferWestSwim is on, swim-out leans
-    // toward camera-left/right so the exit reads more "corridor west" than
-    // straight past the viewer (true compass lock still TBD).
+    // Default motion (Maria / Jimmy): one straight line, nose first — in from
+    // behind the viewer, a pause in front, then on out the same way.
+    //
+    // The exit used to bend ~35° toward camera-left (a "head west toward SAP"
+    // guess that had no compass behind it) and turn into the bend, so every
+    // shark veered off at an angle after its pause — Sept 29: "they should only
+    // swim forward". Keeping one heading for the whole pass means the shark is
+    // always swimming the way it points.
     const swimInDur = 2500;
     const centerDwellDur = 4500;
     const swimOutDur = 2500;
@@ -487,33 +488,8 @@ AFRAME.registerComponent('shark-animator', {
     const startPos = new THREE.Vector3().copy(camPos).sub(dirToTarget.clone().multiplyScalar(3.4));
     startPos.y = y;
     const centerPos = new THREE.Vector3(targetPoint.x, y, targetPoint.z);
-    let outDir = dirToTarget.clone();
-    if (this.data.preferWestSwim) {
-      // Bias ~35° toward the camera's local −X (often corridor-ish on Sharks Way).
-      const camRight = new THREE.Vector3();
-      camRight.set(1, 0, 0).applyQuaternion(cam.object3D.quaternion);
-      camRight.y = 0;
-      if (camRight.lengthSq() > 0.01) {
-        camRight.normalize();
-        // Prefer the side that points more "away down the corridor" from the viewer.
-        outDir.add(camRight.multiplyScalar(-0.7)).normalize();
-      }
-    }
-    const endPos = new THREE.Vector3().copy(targetPoint).add(outDir.clone().multiplyScalar(10.5));
+    const endPos = new THREE.Vector3().copy(targetPoint).add(dirToTarget.clone().multiplyScalar(10.5));
     endPos.y = y;
-
-    // Face the way it actually leaves. facingYaw is the *approach* bearing, but
-    // preferWestSwim bends the exit ~35 deg off that, so a shark that keeps its
-    // entry yaw swims visibly sideways down the whole out-leg — reported on site
-    // as "swims diagonal to its swim path". Turning into the exit fixes it and
-    // reads as the shark banking away.
-    const outYaw = Math.atan2(outDir.x, outDir.z) * (180 / Math.PI) +
-      (experience.rotationOffsetY || 0);
-    // Take the short way round: animating 170 -> -170 numerically spins 340 deg.
-    let turnDelta = (outYaw - facingYaw) % 360;
-    if (turnDelta > 180) turnDelta -= 360;
-    if (turnDelta < -180) turnDelta += 360;
-    const exitYaw = facingYaw + turnDelta;
 
     ent.setAttribute('position', `${startPos.x} ${startPos.y} ${startPos.z}`);
     ent.setAttribute('rotation', `0 ${facingYaw} 0`);
@@ -541,17 +517,6 @@ AFRAME.registerComponent('shark-animator', {
     this.queue(() => {
       if (!this.isRunning || this.activeEntity !== ent) return;
       ent.removeAttribute('animation__hover');
-      // Turn first and quickly, so the shark is pointing where it is going for
-      // most of the leg rather than arriving at the right heading as it leaves.
-      if (Math.abs(turnDelta) > 1) {
-        ent.setAttribute('animation__turnOut', {
-          property: 'rotation',
-          from: `0 ${facingYaw.toFixed(3)} 0`,
-          to: `0 ${exitYaw.toFixed(3)} 0`,
-          dur: Math.min(700, swimOutDur / 3),
-          easing: 'easeInOutSine'
-        });
-      }
       ent.setAttribute('animation__swimOut', {
         property: 'position',
         from: `${centerPos.x} ${centerPos.y} ${centerPos.z}`,
@@ -588,16 +553,49 @@ AFRAME.registerComponent('shark-animator', {
 
   // Shift loaded GLTF mesh so the world-space bottom of its bounding box sits at
   // local y=0 on this entity. Stops belly/center pivots from clipping the floor plane.
+  // Also centres the body over the entity horizontally — see centerGltfOnOrigin.
   alignGltfBottomToOrigin: function (ent) {
     const mesh = ent.getObject3D('mesh');
     if (!mesh || typeof THREE === 'undefined') return;
     try {
+      this.centerGltfOnOrigin(ent);
       mesh.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(mesh);
       mesh.position.y += -box.min.y;
     } catch (e) {
       /* ignore bbox errors */
     }
+  },
+
+  /**
+   * Put the body, not the file's origin, on the entity's position.
+   *
+   * The swimmer GLBs sit ~4.5 model units behind their origin (nose at z −2.7,
+   * tail at −6.5), which is 1.8 m at 0.4 scale. So a swim-through "arrived"
+   * with its body 1.8 m short of the target, a dropped shark landed 1.8 m past
+   * the tap, and any yaw swung the body around an invisible point in front of
+   * it. X/Z only — the tuned heights stay as they were.
+   *
+   * Rigged meshes are measured posed (skeleton updated, bounds recomputed);
+   * three's cached skinned bounds are taken before the first pose and are junk.
+   */
+  centerGltfOnOrigin: function (ent) {
+    const mesh = ent.getObject3D('mesh');
+    if (!mesh) return;
+    ent.object3D.updateWorldMatrix(true, false);
+    mesh.updateMatrixWorld(true);
+    mesh.traverse((o) => {
+      if (o.isSkinnedMesh && o.skeleton && typeof o.computeBoundingBox === 'function') {
+        o.skeleton.update();
+        o.computeBoundingBox();
+      }
+    });
+    const world = new THREE.Box3().setFromObject(mesh);
+    if (world.isEmpty()) return;
+    const c = world.getCenter(new THREE.Vector3());
+    ent.object3D.worldToLocal(c);
+    mesh.position.x -= c.x;
+    mesh.position.z -= c.z;
   },
 
 });

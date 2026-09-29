@@ -367,7 +367,7 @@
                 tourStops = data.sharks.map(shark => ({
                     id: shark.id,
                     name: shark.title,
-                    event: shark.eventInfo.name,
+                    event: shark.eventInfo ? shark.eventInfo.name : '',
                     lat: shark.latitude,
                     lng: shark.longitude,
                     description: shark.description,
@@ -387,8 +387,7 @@
                 // Approved SJ26 March Activations copy — avoid "Super Bowl",
                 // "March Madness", and NCAA branding per PR guidance.
                 tourStops = [
-                    { id: 'stop1', name: "SAP Center", event: "Free Throw", lat: 37.3326, lng: -121.9010 },
-                    { id: 'stop2', name: "Arena Green West", event: "Minis & Trophy", lat: 37.3382, lng: -121.8985 },
+                                        { id: 'stop2', name: "Arena Green West", event: "Minis & Trophy", lat: 37.3382, lng: -121.8985 },
                     { id: 'stop3', name: "San Pedro Square", event: "International Football", lat: 37.3369, lng: -121.8936 }
                 ];
                 createSharkEntities();
@@ -457,7 +456,7 @@
                 // Elegant text label with better formatting
                 const text = document.createElement('a-text');
                 text.setAttribute('id', `text-${stop.id}`);
-                text.setAttribute('value', `${stop.name}\n${stop.event}`);
+                text.setAttribute('value', stop.event ? `${stop.name}\n${stop.event}` : stop.name);
                 text.setAttribute('align', 'center');
                 text.setAttribute('baseline', 'center');
                 text.setAttribute('color', '#FFFFFF');
@@ -501,7 +500,7 @@
             }
 
             document.getElementById('next-stop').textContent =
-                `${nextStop.name}\n${nextStop.event}`;
+                nextStop.event ? `${nextStop.name}\n${nextStop.event}` : nextStop.name;
 
             // Update nearest shark indicator
             if (userLat && userLng) {
@@ -607,7 +606,7 @@
 
             const celebration = document.getElementById('arrival-celebration');
             document.getElementById('celebration-title').innerHTML = `🎉 Hooray! You Found Sharkie!`;
-            document.getElementById('celebration-message').textContent = `${shark.name} - ${shark.event}`;
+            document.getElementById('celebration-message').textContent = shark.event ? `${shark.name} - ${shark.event}` : shark.name;
             document.getElementById('celebration-sharkey').textContent = shark.sharkeyMessage || `Sharkie says: Great job finding me! Enjoy the experience!`;
 
             celebration.classList.add('show');

@@ -97,7 +97,7 @@ city-project/
 2. **shark-ar-8thwall.html** — 8th Wall Wayfinding. Per the **June 10, 2026 redline**, the cycle is **Maria + Jimmy only**, appearing alternately when the camera recognises a painted shark (approach from behind → pause → swim off, no tap). Tapping the ground "drops a shark" — a single Jimmy that loops in place and stays so visitors can walk around it. Stella, Sharkie Waving, and the Diving Shark were removed from this cycle (Sharkie → selfie feature; Diving → jump drops; Stella → retired).
    **Sept 28 "final touches" (Rhonda): no more automatic location-based placements.** GPS no longer spawns or plants anything; scanning works everywhere (it used to be switched off in Little Italy). GPS only decides which extra *tap-to-drop* options the bottom drop bar offers (`src/components/location-experiences.js`, 75 m radius): Little Italy → Athena + Leaning Tower, Guadalupe River → river jump, SAP Center → "Drop a Party" (dancing mascots at the tap, a pod of sharks circling the visitor at 8 m, a jumping shark). Drops land where the visitor taps — no compass involved.
 3. **location-tour.html** — Leaflet.js GPS checkpoint tour along the corridor (AR.js 3.4.8 location-based,
-   pinned on jsDelivr). Stops and event copy come from `data/shark-locations.json` — still the March 2026
+   pinned on jsDelivr). Stops come from `data/shark-locations.json`;
    "Free Throw at SAP Center" event as of Sept 29; update it when the next event is set.
 4. **selfie-ar.html** — standalone MediaPipe shoulder-mount selfie with Sammy / Sharkie (`?character=sharkey`).
    Its placement, capture and share are a copy of Photo Mode's selfie in `sharks-way-modes.js`

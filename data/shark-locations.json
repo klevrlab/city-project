@@ -9,12 +9,7 @@
       "latitude": 37.336861,
       "longitude": -121.894361,
       "icon": "./assets/SharkLogo.png",
-      "sharkeyMessage": "You've reached Checkpoint A! Keep going to Label B!",
-      "eventInfo": {
-        "name": "Free Throw at SAP Center",
-        "date": "March 26 & 28, 2026",
-        "venue": "Checkpoint A"
-      }
+      "sharkeyMessage": "You've reached Checkpoint A! Keep going to Label B!"
     },
     {
       "id": "shark-2",
@@ -23,12 +18,7 @@
       "latitude": 37.334222,
       "longitude": -121.900417,
       "icon": "./assets/SharkLogo.png",
-      "sharkeyMessage": "Congratulations! You've reached Checkpoint B!",
-      "eventInfo": {
-        "name": "Free Throw at SAP Center",
-        "date": "March 26 & 28, 2026",
-        "venue": "Checkpoint B"
-      }
+      "sharkeyMessage": "Congratulations! You've reached Checkpoint B!"
     }
   ],
   "settings": {

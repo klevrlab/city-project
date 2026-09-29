@@ -8,15 +8,6 @@ AFRAME.registerSystem('event-system', {
     // + San Jose Sports Authority partnership instead.
     this.dummyEvents = [
       {
-        title: "Free Throw at SAP Center",
-        date: "March 26 & 28, 2026",
-        time: "7:30 PM – 10:00 PM",
-        location: "SAP Center at San Jose",
-        description: "Large-scale interactive projection mapping by G. Craig Hobbs with students from SJSU's CADRE Media Lab, celebrating the college basketball tournament at SAP Center.",
-        sharkeyMessage: "Free Throw turns the SAP Center plaza into a playable canvas of light and motion — a partnership of the San Jose Sports Authority, the City of San José, SJSU, and SAP Center at San Jose.",
-        icon: "./assets/SharkLogo.png"
-      },
-      {
         title: "Minis & Trophy – Arena Green West",
         date: "March 26 & 28, 2026",
         time: "1:00 PM – 10:00 PM",

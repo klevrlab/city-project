@@ -11,15 +11,14 @@
     <meta name="theme-color" content="#00161a">
     <title>Sharks Way — Shark AR</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./src/css/map-component.css" />
     <link rel="stylesheet" href="./src/css/progress-tracker.css" />
     <link rel="stylesheet" href="./src/css/shared-styles.css" />
-    
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="./src/utils/checkpoint-loader.js"></script>
-    <script type="module" src="./src/utils/shared-map-markers.js"></script>
-    
+
+    <!-- No Leaflet here: this page has no map (#mini-map), so tour-ui's map
+         init bails out, and a render-blocking unpkg script only added a way
+         for a slow CDN to stall the page. -->
+
     <!-- Core AI Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1"></script>
@@ -132,8 +131,9 @@
         });
     </script>
 
-    <!-- GPS Tracking -->
-    <script type="module" src="./src/utils/shared-gps-tracking.js"></script>
+    <!-- GPS: location-experiences owns the watch here. shared-gps-tracking.js
+         drives the checkpoint UI of the tour pages, none of which is on this
+         page — it only added a second watch and two console lines a second. -->
 
     <!-- Navigation Component -->
     <script type="module">

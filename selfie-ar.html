@@ -13,6 +13,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module" src="./src/utils/checkpoint-loader.js"></script>
     <script type="module" src="./src/utils/shared-map-markers.js"></script>
+    <!-- Sammy and Sharkie are Draco-compressed: decode with the vendored decoder
+         (assets/vendor/draco), not gstatic. Has to run before model-viewer loads —
+         every <model-viewer> re-reads this config when it's created. -->
+    <script>
+        self.ModelViewerElement = Object.assign(self.ModelViewerElement || {}, {
+            dracoDecoderLocation: new URL('./assets/vendor/draco/', location.href).href
+        });
+    </script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>

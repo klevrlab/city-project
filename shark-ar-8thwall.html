@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="utf-8">
@@ -7,7 +7,9 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Sharks Way - Full Shark AR (8th Wall)</title>
+    <meta name="description" content="Augmented-reality sharks along Sharks Way, from downtown San José to SAP Center — Immersion 2026.">
+    <meta name="theme-color" content="#00161a">
+    <title>Sharks Way — Shark AR</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./src/css/map-component.css" />
@@ -25,9 +27,9 @@
     <script type="module" src="./src/utils/xr8-shark-video-bridge.js"></script>
 
     <!-- 1. 8th Wall Engine & Extras (2026 Distributed Engine) -->
-    <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1/dist/xr.js" crossorigin="anonymous" data-preload-chunks="slam" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/@8thwall/engine-binary@1.0.0/dist/xr.js" crossorigin="anonymous" data-preload-chunks="slam" async></script>
     <script src="https://cdn.8thwall.com/web/aframe/8frame-1.5.0.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js" crossorigin="anonymous" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1.0.0/dist/xrextras.js" crossorigin="anonymous" async></script>
     
     <!-- A-Frame Extras for Animation Mixer -->
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
@@ -71,9 +73,10 @@
 
     <button id="spawn-btn" onclick="if(window.manualSharkSpawn) window.manualSharkSpawn();">Summon a Shark</button>
 
-    <!-- Tap Instruction Overlay. Sharks auto-appear along Sharks Way (no tap
-         needed); once one is detected this updates to the "drop a shark" prompt. -->
-    <div id="tap-instruction">Sharks appear automatically along Sharks Way — point your camera around</div>
+    <!-- Tap Instruction Overlay. A shark swims up when the camera recognises a
+         painted shark on the sidewalk; after one appears this updates to the
+         "drop a shark" prompt. -->
+    <div id="tap-instruction">Point your camera at a painted shark on the sidewalk</div>
 
     <!-- XRExtras will provide its own loading screen if xrextras-loading is used -->
     
@@ -90,24 +93,13 @@
         tour-ui shark-detector="useGps: false; useVision: true" location-experiences>
 
         <a-assets>
-            <!-- June 10 redline: Wayfinding cycle is Maria + Jimmy only. Stella,
-                 Sharkie, and the Diving Shark were removed from this experience. -->
+            <!-- Only what's needed the moment a painted shark is scanned: the
+                 June 10 wayfinding pair, Maria + Jimmy. Everything else — Photo
+                 Mode mascots, Athena, the tower, the jump and party sharks — is
+                 registered in src/utils/model-assets.js and added here when the
+                 visitor gets near the location that uses it. -->
             <a-asset-item id="maria-swimmer" src="./assets/3D-models/SEAN_ANIMATED_WiTH_MARIA_SHARK.glb"></a-asset-item>
             <a-asset-item id="jimmy-swimmer" src="./assets/3D-models/jimmy-shark-swimmer.glb"></a-asset-item>
-            <!-- Photo Mode mascots (place on ground; Flip Camera opens selfie-ar). -->
-            <a-asset-item id="photo-sharkie" src="./assets/3D-models/sharkie_final_pose.glb"></a-asset-item>
-            <a-asset-item id="photo-sammy" src="./assets/3D-models/sammy_final_pose.glb"></a-asset-item>
-            <!-- Little Italy tap-to-place (Sept 28): one Athena + the tower. The
-                 left-pointing Athena and Augustus belonged to the retired 8-statue
-                 row; they're still spawnable from the debug MODELS tab. -->
-            <a-asset-item id="athena-point-right" src="./assets/3D-models/Athena_Statue-point-right.glb"></a-asset-item>
-            <a-asset-item id="leaning-tower-model" src="./assets/3D-models/Leaning_Tower_of_Pisa.glb"></a-asset-item>
-            <!-- River jump + party jump. Carries its own baked breach; see dive-clip. -->
-            <a-asset-item id="diving-shark" src="./assets/3D-models/maria-shark-jump-jimmy-txtr.glb"></a-asset-item>
-            <!-- SAP party circle sharks. -->
-            <a-asset-item id="circle-maria" src="./assets/3D-models/SEAN_ANIMATED_WiTH_MARIA_SHARK.glb"></a-asset-item>
-            <a-asset-item id="circle-stella" src="./assets/3D-models/STELLA_CAI_SHARK_SJSU_TEST1.glb"></a-asset-item>
-            <a-asset-item id="circle-jimmy" src="./assets/3D-models/jimmy-shark-swimmer.glb"></a-asset-item>
         </a-assets>
 
         <!-- Lighting for AR Shadows -->

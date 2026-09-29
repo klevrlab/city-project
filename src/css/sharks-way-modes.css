@@ -89,6 +89,38 @@ button.sw-mode-btn.active {
   border-color: rgba(0, 169, 224, 0.8);
 }
 
+.sw-chip[hidden] {
+  display: none;
+}
+
+/* Photo Mode: characters on top, Flip / Snap below — one row of five chips
+   (Sharkie, Sammy, Athena, Flip, Snap) is wider than a phone. */
+#photo-mode-bar {
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 24px;
+  max-width: calc(100vw - 24px);
+}
+
+.sw-photo-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sw-photo-row .sw-chip {
+  white-space: nowrap;
+}
+
+/* The two-row bar reaches ~115px up; lift the hints above it. */
+body.sw-photo-active #tap-instruction {
+  bottom: 132px;
+}
+
+body.sw-photo-active #toast {
+  bottom: 212px;
+}
+
 .sw-chip-snap {
   background: rgba(255, 255, 255, 0.92);
   color: #00161a;
@@ -181,13 +213,17 @@ button.sw-mode-btn.active {
   visibility: visible;
 }
 
-/* Bottom, not top: at the top it covered the visitor's face. */
+/* Bottom, not top: at the top it covered the visitor's face. Only shown while
+   no shoulders are detected — it's the fix for exactly that. */
 #sw-selfie-hint {
   position: fixed;
-  bottom: 140px;
+  bottom: 132px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 970;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  text-align: center;
   background: rgba(0, 109, 117, 0.85);
   color: #fff;
   padding: 10px 16px;
@@ -195,6 +231,12 @@ button.sw-mode-btn.active {
   font-size: 13px;
   font-weight: 600;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+#sw-selfie-hint.visible {
+  opacity: 1;
 }
 
 #sw-photo-flash {
@@ -242,10 +284,15 @@ button.sw-mode-btn.active {
   color: #fff;
 }
 
+/* A full-screen capture is taller than the card is wide; at width: 100% it
+   pushed Save / Share off the bottom of a phone screen. */
 #sw-photo-preview-img {
-  width: 100%;
-  border-radius: 10px;
   display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 170px);
+  max-height: calc(100dvh - 170px);
+  margin: 0 auto;
+  border-radius: 10px;
   background: #000;
 }
 

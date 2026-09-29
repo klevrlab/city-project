@@ -3,11 +3,13 @@
  * Wayfinding (default) | Photo Mode | Goalie Mode
  *
  * Photo Mode (real, in-page):
- *  - Place: back-camera XR, tap ground to place Sharkie/Sammy, Snap captures AR frame
+ *  - Place: back-camera XR, tap ground to place a character, Snap captures AR frame
  *  - Selfie: Flip Camera → front cam + MediaPipe shoulder mount (no page navigate)
+ *  - Characters: Sharkie and Sammy everywhere; Athena near Little Italy
  * Goalie Mode: soccer-game with hard-coded puck (Sharkie in goal).
  */
 import '../css/sharks-way-modes.css';
+import { ensureModel, modelSrc, prefetchModels } from '../utils/model-assets.js';
 
 const MODE = {
   WAYFINDING: 'wayfinding',
@@ -17,35 +19,59 @@ const MODE = {
 
 const CHAR = {
   SHARKIE: 'sharkie',
-  SAMMY: 'sammy'
-};
-
-const CHAR_MODEL = {
-  [CHAR.SHARKIE]: '#photo-sharkie',
-  [CHAR.SAMMY]: '#photo-sammy'
-};
-
-const CHAR_SELFIE_SRC = {
-  [CHAR.SHARKIE]: './assets/3D-models/sharkie_final_pose.glb',
-  [CHAR.SAMMY]: './assets/3D-models/sammy_final_pose.glb'
+  SAMMY: 'sammy',
+  ATHENA: 'athena'
 };
 
 /** Sharkie / Sammy height in metres. Keep in step with MASCOT_HEIGHT_M in location-experiences.js. */
 const MASCOT_HEIGHT_M = 1.9;
 
 /**
- * Farthest a tapped mascot may land. On site, taps toward the horizon put the
- * mascot 10+ m out, where it was small and SLAM drift walked it around ("once
- * placed mascot drifts so hard to get into view"). A few metres away is where a
- * photo with it works anyway.
+ * Photo Mode characters, in chip order.
+ *
+ * `minM` / `maxM` clamp how far from the camera a tapped character lands. On
+ * site, taps toward the horizon put the mascot 10+ m out, where it was small
+ * and SLAM drift walked it around ("once placed mascot drifts so hard to get
+ * into view"). A few metres away is where a photo with it works anyway —
+ * farther for Athena, whose 2.5 m (the Little Italy statue size) doesn't fit
+ * in a portrait frame from 1.2 m.
+ *
+ * `nearOnly` names the location drop that unlocks a character: the Sept 28
+ * notes' stretch goal is Athena as a selfie option "when near Little Italy",
+ * so she's offered exactly where the Athena drop is.
+ *
+ * `statue` models are static meshes, loaded through shared-gltf so Photo Mode
+ * and the Little Italy drop share one parse and one set of textures.
  */
-const PHOTO_MAX_DISTANCE_M = 3.5;
-const PHOTO_MIN_DISTANCE_M = 1.2;
+const CHARACTERS = {
+  [CHAR.SHARKIE]: { label: 'Sharkie', asset: 'photo-sharkie', heightM: MASCOT_HEIGHT_M, minM: 1.2, maxM: 3.5 },
+  [CHAR.SAMMY]: { label: 'Sammy', asset: 'photo-sammy', heightM: MASCOT_HEIGHT_M, minM: 1.2, maxM: 3.5 },
+  [CHAR.ATHENA]: {
+    label: 'Athena', asset: 'athena-point-right', heightM: 2.5, minM: 2.5, maxM: 5,
+    nearOnly: 'athena', statue: true
+  }
+};
+
+/** Keep in step with STATUE_MAX_TEXTURE_PX in location-experiences.js. */
+const STATUE_MAX_TEXTURE_PX = 1024;
+
+/**
+ * Pinned versions, not "latest": with an unpinned URL a MediaPipe release could
+ * change or break the selfie on event day without anyone deploying. pose.js and
+ * the wasm / model files its locateFile fetches must come from the same version.
+ */
+const MEDIAPIPE_POSE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404';
+const MEDIAPIPE_CAMERA_UTILS_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862';
+
+/** Photos are JPEG: a full-screen PNG took seconds to encode on a phone and ran to ~10 MB. */
+const PHOTO_MIME = 'image/jpeg';
+const PHOTO_QUALITY = 0.92;
 
 const state = {
   mode: MODE.WAYFINDING,
   photoCharacter: CHAR.SHARKIE,
   photoEntity: null,
+  lastTapPoint: null,    // where the visitor last tapped, to re-place on a character switch
   photoSubmode: 'place', // 'place' | 'selfie'
   soccerArmed: false,
   selfie: {
@@ -85,6 +111,42 @@ function flashToast(text, ms = 2200) {
   flashToast._t = setTimeout(() => el.classList.remove('show'), ms);
 }
 
+/** Hide the toast, but only if it still says `text` — a newer toast wins. */
+function hideToast(text) {
+  const el = document.getElementById('toast');
+  if (!el || (text && el.textContent !== text)) return;
+  clearTimeout(flashToast._t);
+  el.classList.remove('show');
+}
+
+function currentCharacter() {
+  return CHARACTERS[state.photoCharacter] || CHARACTERS[CHAR.SHARKIE];
+}
+
+/** Sharkie and Sammy always; a `nearOnly` character while its drop is on offer. */
+function isCharacterAvailable(id) {
+  const c = CHARACTERS[id];
+  if (!c) return false;
+  if (!c.nearOnly) return true;
+  const drops = window.SharksWayDrops;
+  return !!(drops && drops.available().includes(c.nearOnly));
+}
+
+/**
+ * "Loading Athena…" while a character's file is still downloading (the first
+ * pick can beat the prefetch on a slow connection), cleared when the model
+ * arrives, and a retry hint instead of an empty spot if it never does.
+ */
+function reportModelLoad(ent, c, loaded) {
+  const loading = `Loading ${c.label}…`;
+  if (!loaded) flashToast(loading, 30000);
+  ent.addEventListener('model-loaded', () => hideToast(loading), { once: true });
+  ent.addEventListener('model-error', () => {
+    console.warn(`[sharks-way-modes] ${c.label} failed to load`);
+    flashToast(`${c.label} didn't load — check your connection and tap again`, 4000);
+  }, { once: true });
+}
+
 function setWayfindingUi(on) {
   const spawn = document.getElementById('spawn-btn');
   if (spawn) spawn.style.display = on ? '' : 'none';
@@ -107,26 +169,35 @@ function spawnPhotoMascot(point, facingYaw) {
   const root = document.getElementById('photo-root');
   if (!root) return;
   clearPhotoMascot();
-  const model = CHAR_MODEL[state.photoCharacter] || CHAR_MODEL[CHAR.SHARKIE];
+  const c = currentCharacter();
+  // Created on first use (model-assets.js); must exist before the selector is set.
+  const item = ensureModel(c.asset);
   const ent = document.createElement('a-entity');
-  ent.setAttribute('gltf-model', model);
+  if (c.statue) {
+    ent.setAttribute('shared-gltf', `src: #${c.asset}; maxTexture: ${STATUE_MAX_TEXTURE_PX}`);
+  } else {
+    ent.setAttribute('gltf-model', `#${c.asset}`);
+  }
   ent.setAttribute('position', `${point.x} 0.02 ${point.z}`);
   ent.setAttribute('rotation', `0 ${facingYaw} 0`);
-  // Sharkie is 1.95 m in its GLB and Sammy 2.96 m, and both float above their
-  // origin — normalize to a common height so photos frame consistently.
-  ent.setAttribute('model-normalize', `height: ${MASCOT_HEIGHT_M}`);
+  // Sharkie is 1.95 m in its GLB, Sammy 2.96 m and Athena 206 m, and the
+  // mascots float above their origin — normalize so photos frame consistently.
+  ent.setAttribute('model-normalize', `height: ${c.heightM}`);
   ent.setAttribute('shadow', 'cast: true');
+  reportModelLoad(ent, c, !item || item.hasLoaded);
   root.appendChild(ent);
   state.photoEntity = ent;
 }
 
-function placePhotoMascot(tapPoint) {
+function placePhotoMascot(tapPoint, { quiet = false } = {}) {
   const root = document.getElementById('photo-root');
   if (!root || !tapPoint) return;
 
   clearPhotoMascot();
+  state.lastTapPoint = new THREE.Vector3(tapPoint.x, 0, tapPoint.z);
+  const c = currentCharacter();
 
-  // Keep the mascot at photo distance, along the line the visitor tapped.
+  // Keep the character at photo distance, along the line the visitor tapped.
   const point = new THREE.Vector3(tapPoint.x, 0, tapPoint.z);
   let facingYaw = 0;
   const cam = document.getElementById('camera');
@@ -140,7 +211,7 @@ function placePhotoMascot(tapPoint) {
     } else {
       toPoint.divideScalar(d);
     }
-    d = Math.min(Math.max(d, PHOTO_MIN_DISTANCE_M), PHOTO_MAX_DISTANCE_M);
+    d = Math.min(Math.max(d, c.minM), c.maxM);
     point.set(camPos.x + toPoint.x * d, 0, camPos.z + toPoint.z * d);
 
     // Models face +Z: aim +Z from the mascot back at the camera. The old math
@@ -149,6 +220,7 @@ function placePhotoMascot(tapPoint) {
   }
 
   spawnPhotoMascot(point, facingYaw);
+  if (quiet) return;
 
   setInstruction('Tap again to move · Snap to save · Flip for selfie', true);
   setTimeout(() => {
@@ -159,8 +231,50 @@ function placePhotoMascot(tapPoint) {
 
 function syncPhotoCharacterButtons() {
   document.querySelectorAll('[data-photo-char]').forEach((btn) => {
-    btn.classList.toggle('active', btn.getAttribute('data-photo-char') === state.photoCharacter);
+    const id = btn.getAttribute('data-photo-char');
+    btn.hidden = !isCharacterAvailable(id);
+    btn.classList.toggle('active', id === state.photoCharacter);
   });
+}
+
+/** Switch character, re-placing (place mode) or re-rendering (selfie) the current one. */
+function selectPhotoCharacter(id) {
+  if (!isCharacterAvailable(id) || id === state.photoCharacter) {
+    syncPhotoCharacterButtons();
+    return;
+  }
+  state.photoCharacter = id;
+  syncPhotoCharacterButtons();
+  // Re-place from the original tap rather than swapping the model in place:
+  // characters have different distance ranges, and changing gltf-model on the
+  // live entity fires model-error for an <a-asset-item> selector (A-Frame
+  // 1.5), which left an empty spot where the mascot had been.
+  if (state.photoEntity && state.lastTapPoint) {
+    placePhotoMascot(state.lastTapPoint, { quiet: true });
+  }
+  if (state.photoSubmode === 'selfie') applySelfieCharacter();
+}
+
+/**
+ * The location drops changed (GPS or demo unlock): show or hide Athena. Leaving
+ * Little Italy with her selected falls back to Sharkie for the next tap and the
+ * selfie overlay; a statue already standing in place mode stays for the photo.
+ */
+function onDropsChanged() {
+  if (!isCharacterAvailable(state.photoCharacter)) {
+    state.photoCharacter = CHAR.SHARKIE;
+    if (state.photoSubmode === 'selfie') applySelfieCharacter();
+  }
+  if (!isCharacterAvailable(CHAR.ATHENA)) announceAthena.done = false;
+  announceAthena();
+  syncPhotoCharacterButtons();
+}
+
+/** Once per visit to Little Italy, point out the extra chip. */
+function announceAthena() {
+  if (state.mode !== MODE.PHOTO || !isCharacterAvailable(CHAR.ATHENA) || announceAthena.done) return;
+  announceAthena.done = true;
+  flashToast('Athena is here — pick her for a photo', 3500);
 }
 
 function syncPhotoSubmodeUi() {
@@ -181,10 +295,19 @@ function syncPhotoSubmodeUi() {
 function setPhotoUi(on) {
   const bar = document.getElementById('photo-mode-bar');
   if (bar) bar.classList.toggle('visible', on);
-  if (!on) {
+  // The two-row photo bar is taller than the drop bar; CSS lifts the hints.
+  document.body.classList.toggle('sw-photo-active', on);
+  if (on) {
+    // Page load only fetches the wayfinding sharks; get the mascots coming now.
+    prefetchModels(Object.keys(CHARACTERS)
+      .filter(isCharacterAvailable)
+      .map((id) => CHARACTERS[id].asset));
+    announceAthena();
+  } else {
     if (state.photoSubmode === 'selfie') stopSelfieMode();
     state.photoSubmode = 'place';
     clearPhotoMascot();
+    state.lastTapPoint = null;
   }
   const root = document.getElementById('photo-root');
   if (root) root.setAttribute('visible', on && state.photoSubmode === 'place' ? 'true' : 'false');
@@ -267,8 +390,8 @@ async function ensureSelfieScripts() {
     if (!customElements.get('model-viewer')) {
       await import('https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js');
     }
-    await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
-    await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js');
+    await loadScript(`${MEDIAPIPE_CAMERA_UTILS_URL}/camera_utils.js`);
+    await loadScript(`${MEDIAPIPE_POSE_URL}/pose.js`);
     state.selfie.scriptsReady = true;
   })();
 
@@ -282,7 +405,24 @@ async function ensureSelfieScripts() {
 function applySelfieCharacter() {
   const viewer = document.getElementById('sw-selfie-viewer');
   if (!viewer) return;
-  viewer.setAttribute('src', CHAR_SELFIE_SRC[state.photoCharacter] || CHAR_SELFIE_SRC[CHAR.SHARKIE]);
+  const c = currentCharacter();
+  const src = modelSrc(c.asset);
+  if (!src || viewer.getAttribute('src') === src) return;
+  // model-viewer fetches the file itself; say so while a big one (Athena) loads.
+  const loading = `Loading ${c.label}…`;
+  flashToast(loading, 30000);
+  const done = () => {
+    hideToast(loading);
+    viewer.removeEventListener('load', done);
+    viewer.removeEventListener('error', failed);
+  };
+  const failed = () => {
+    done();
+    flashToast(`${c.label} didn't load — check your connection`, 4000);
+  };
+  viewer.addEventListener('load', done);
+  viewer.addEventListener('error', failed);
+  viewer.setAttribute('src', src);
 }
 
 /**
@@ -309,6 +449,9 @@ function onSelfiePoseResults(results) {
   const video = document.getElementById('sw-selfie-video');
   if (!overlay || !viewer || !video) return;
 
+  // The hint is only for when there are no shoulders to stand on; once there
+  // are, it would just cover the photo.
+  setSelfieHint(!results.poseLandmarks);
   if (!results.poseLandmarks) {
     overlay.classList.remove('visible');
     state.selfie.lastRect = null;
@@ -353,9 +496,15 @@ function onSelfiePoseResults(results) {
   state.selfie.lastRect = { x: left0, y: top0, w, h };
 }
 
+function setSelfieHint(show) {
+  const hint = document.getElementById('sw-selfie-hint');
+  if (hint) hint.classList.toggle('visible', show);
+}
+
 async function startSelfieMode() {
   setInstruction('Selfie Mode — line up shoulders, then Snap', true);
   flashToast('Starting front camera…');
+  setSelfieHint(true);
 
   try {
     await ensureSelfieScripts();
@@ -394,7 +543,7 @@ async function startSelfieMode() {
   }
 
   const pose = new Pose({
-    locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+    locateFile: (f) => `${MEDIAPIPE_POSE_URL}/${f}`
   });
   pose.setOptions({
     modelComplexity: 0,
@@ -417,6 +566,12 @@ async function startSelfieMode() {
   state.selfie.camera = camera;
   await camera.start();
   setInstruction('Selfie Mode — Snap to capture · Flip returns to place', true);
+  // Bottom of a selfie is where the visitor is; don't leave text sitting there.
+  setTimeout(() => {
+    if (state.photoSubmode !== 'selfie') return;
+    const el = document.getElementById('tap-instruction');
+    if (el) el.classList.remove('visible');
+  }, 3000);
 }
 
 function stopSelfieMode() {
@@ -438,6 +593,7 @@ function stopSelfieMode() {
 
   const overlay = document.getElementById('sw-selfie-overlay');
   if (overlay) overlay.classList.remove('visible');
+  setSelfieHint(false);
 
   state.photoSubmode = 'place';
   syncPhotoSubmodeUi();
@@ -475,7 +631,7 @@ function capturePlaceMode() {
     return;
   }
   try {
-    showPreview(canvas.toDataURL('image/png'));
+    showPreview(canvas.toDataURL(PHOTO_MIME, PHOTO_QUALITY));
   } catch (e) {
     console.warn('Place capture failed', e);
     flashToast('Capture failed (try again)');
@@ -524,7 +680,7 @@ async function captureSelfieMode() {
     }
   }
 
-  showPreview(out.toDataURL('image/png'));
+  showPreview(out.toDataURL(PHOTO_MIME, PHOTO_QUALITY));
 }
 
 function snapPhoto() {
@@ -538,33 +694,56 @@ function snapPhoto() {
   else capturePlaceMode();
 }
 
+/** File extension for the preview's data URL ("data:image/jpeg;…" → "jpg"). */
+function previewExtension(dataUrl) {
+  const mime = (dataUrl.match(/^data:([^;,]+)/) || [])[1] || PHOTO_MIME;
+  return mime === 'image/png' ? 'png' : 'jpg';
+}
+
 function savePreview() {
   const img = document.getElementById('sw-photo-preview-img');
   if (!img || !img.src) return;
   const a = document.createElement('a');
   a.href = img.src;
-  a.download = `sharks-way-photo-${Date.now()}.png`;
+  a.download = `sharks-way-photo-${Date.now()}.${previewExtension(img.src)}`;
   a.click();
   hidePreview();
   flashToast('Saved');
 }
 
-async function sharePreview() {
+/** Decode a data URL into a File, synchronously. */
+function dataUrlToFile(dataUrl, name) {
+  const comma = dataUrl.indexOf(',');
+  const mime = (dataUrl.slice(0, comma).match(/^data:([^;,]+)/) || [])[1] || PHOTO_MIME;
+  const bin = atob(dataUrl.slice(comma + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], name, { type: mime });
+}
+
+/**
+ * No awaits before navigator.share(): Safari only allows it straight out of the
+ * tap, and the old `await fetch(dataUrl)` first could cost that permission.
+ */
+function sharePreview() {
   const img = document.getElementById('sw-photo-preview-img');
   if (!img || !img.src) return;
+  let file;
   try {
-    if (navigator.share) {
-      const blob = await (await fetch(img.src)).blob();
-      await navigator.share({
-        files: [new File([blob], 'sharks-way-photo.png', { type: 'image/png' })],
-        title: 'Sharks Way Photo'
-      });
-    } else {
-      flashToast('Share not supported — use Save');
-    }
+    file = dataUrlToFile(img.src, `sharks-way-photo.${previewExtension(img.src)}`);
   } catch (e) {
-    /* user cancelled */
+    flashToast('Share failed — use Save');
+    return;
   }
+  // Desktop browsers often have navigator.share but can't share files; that
+  // used to throw into the "user cancelled" catch and do nothing at all.
+  if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [file] }))) {
+    flashToast('Sharing isn\'t supported here — use Save');
+    return;
+  }
+  navigator.share({ files: [file], title: 'Sharks Way Photo' }).catch((e) => {
+    if (e && e.name !== 'AbortError') flashToast('Share failed — use Save');
+  });
 }
 
 export function getSharksWayMode() {
@@ -592,7 +771,7 @@ export function setSharksWayMode(mode) {
 
   if (mode === MODE.WAYFINDING) {
     setWayfindingUi(true);
-    setInstruction('Sharks appear automatically along Sharks Way — point your camera around', true);
+    setInstruction('Point your camera at a painted shark on the sidewalk', true);
     setTimeout(() => {
       const el = document.getElementById('tap-instruction');
       if (el && state.mode === MODE.WAYFINDING) el.classList.remove('visible');
@@ -626,24 +805,33 @@ function onGroundClick(e) {
 function injectModeUi() {
   if (document.getElementById('photo-mode-bar')) return;
 
+  // Two rows: who's in the photo, then the camera controls. One row of five
+  // chips (with Athena) is wider than a phone.
   const photoBar = document.createElement('div');
   photoBar.id = 'photo-mode-bar';
+  photoBar.setAttribute('role', 'toolbar');
+  photoBar.setAttribute('aria-label', 'Photo Mode');
+  const chips = Object.keys(CHARACTERS).map((id) => `
+      <button type="button" data-photo-char="${id}" class="sw-chip${id === state.photoCharacter ? ' active' : ''}"
+        ${isCharacterAvailable(id) ? '' : 'hidden'}>${CHARACTERS[id].label}</button>`).join('');
   photoBar.innerHTML = `
-    <button type="button" data-photo-char="sharkie" class="sw-chip active">Sharkie</button>
-    <button type="button" data-photo-char="sammy" class="sw-chip">Sammy</button>
-    <button type="button" id="photo-flip-btn" class="sw-chip">Flip Camera</button>
-    <button type="button" id="photo-snap-btn" class="sw-chip sw-chip-snap" aria-label="Take photo">Snap</button>
+    <div class="sw-photo-row">${chips}
+    </div>
+    <div class="sw-photo-row">
+      <button type="button" id="photo-flip-btn" class="sw-chip">Flip Camera</button>
+      <button type="button" id="photo-snap-btn" class="sw-chip sw-chip-snap" aria-label="Take photo">Snap</button>
+    </div>
   `;
   document.body.appendChild(photoBar);
 
-  // In-page selfie layer (front camera + shoulder mascot)
+  // In-page selfie layer (front camera + shoulder mascot). The viewer gets its
+  // src from applySelfieCharacter() when the selfie starts.
   const selfie = document.createElement('div');
   selfie.id = 'sw-selfie-layer';
   selfie.innerHTML = `
     <video id="sw-selfie-video" autoplay playsinline muted></video>
     <div id="sw-selfie-overlay">
       <model-viewer id="sw-selfie-viewer"
-        src="./assets/3D-models/sharkie_final_pose.glb"
         camera-orbit="0deg 80deg 105%"
         camera-target="auto auto auto"
         disable-zoom
@@ -731,18 +919,7 @@ function injectNavModeSection() {
 
 function wirePhotoBar() {
   document.querySelectorAll('[data-photo-char]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.photoCharacter = btn.getAttribute('data-photo-char');
-      syncPhotoCharacterButtons();
-      // Replace the mascot in place. Changing gltf-model on the live entity
-      // fires model-error for an <a-asset-item> selector (A-Frame 1.5), which
-      // left an empty spot where the mascot had been.
-      if (state.photoEntity) {
-        const o = state.photoEntity.object3D;
-        spawnPhotoMascot(o.position.clone(), THREE.MathUtils.radToDeg(o.rotation.y));
-      }
-      if (state.photoSubmode === 'selfie') applySelfieCharacter();
-    });
+    btn.addEventListener('click', () => selectPhotoCharacter(btn.getAttribute('data-photo-char')));
   });
 
   const flip = document.getElementById('photo-flip-btn');
@@ -775,6 +952,9 @@ export function initSharksWayModes() {
   const ground = document.getElementById('ground');
   if (ground) ground.addEventListener('click', onGroundClick);
 
+  // location-experiences reports which drops GPS has unlocked; Athena rides on hers.
+  window.addEventListener('sharksWayDropsChanged', onDropsChanged);
+
   window.SharksWayMode = {
     get: getSharksWayMode,
     set: setSharksWayMode,
@@ -782,7 +962,9 @@ export function initSharksWayModes() {
     isWayfinding: () => state.mode === MODE.WAYFINDING,
     isPhoto: () => state.mode === MODE.PHOTO,
     isGoalie: () => state.mode === MODE.GOALIE,
-    photoSubmode: () => state.photoSubmode
+    photoSubmode: () => state.photoSubmode,
+    photoCharacter: () => state.photoCharacter,
+    selectCharacter: selectPhotoCharacter
   };
 }
 

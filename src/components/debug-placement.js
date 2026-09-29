@@ -219,29 +219,44 @@ AFRAME.registerComponent('debug-placement', {
     window.addEventListener('unhandledrejection', (e) => push('error', [String(e.reason)]));
   },
 
-  /** Track <a-asset-item> load state and HEAD each src for the real HTTP status. */
+  /**
+   * Track <a-asset-item> load state and HEAD each src for the real HTTP status.
+   * Most models are added to <a-assets> later, when the visitor nears the
+   * location that uses them (model-assets.js), so keep watching for new ones.
+   */
   watchAssets: function () {
-    const items = Array.from(document.querySelectorAll('a-asset-item'));
-    items.forEach((item) => {
-      const id = item.getAttribute('id');
-      const src = item.getAttribute('src');
-      const row = { id, src, state: item.hasLoaded ? 'loaded' : 'pending', http: '…', bytes: null };
-      this.assetRows.set(id, row);
+    Array.from(document.querySelectorAll('a-asset-item')).forEach((item) => this.watchAsset(item));
+    const assets = document.querySelector('a-assets');
+    if (assets && !this.assetObserver) {
+      this.assetObserver = new MutationObserver((records) => {
+        records.forEach((r) => r.addedNodes.forEach((n) => {
+          if (n.tagName === 'A-ASSET-ITEM') this.watchAsset(n);
+        }));
+      });
+      this.assetObserver.observe(assets, { childList: true });
+    }
+  },
 
-      if (!item.hasLoaded) {
-        item.addEventListener('loaded', () => { row.state = 'loaded'; });
-        item.addEventListener('error', () => { row.state = 'ERROR'; });
-      }
+  watchAsset: function (item) {
+    const id = item.getAttribute('id');
+    if (this.assetRows.has(id)) return;
+    const src = item.getAttribute('src');
+    const row = { id, src, state: item.hasLoaded ? 'loaded' : 'pending', http: '…', bytes: null };
+    this.assetRows.set(id, row);
 
-      fetch(src, { method: 'HEAD' })
-        .then((r) => {
-          row.http = String(r.status);
-          const len = r.headers.get('content-length');
-          row.bytes = len ? Number(len) : null;
-          if (!r.ok) row.state = 'ERROR';
-        })
-        .catch(() => { row.http = 'net-fail'; row.state = 'ERROR'; });
-    });
+    if (!item.hasLoaded) {
+      item.addEventListener('loaded', () => { row.state = 'loaded'; });
+      item.addEventListener('error', () => { row.state = 'ERROR'; });
+    }
+
+    fetch(src, { method: 'HEAD' })
+      .then((r) => {
+        row.http = String(r.status);
+        const len = r.headers.get('content-length');
+        row.bytes = len ? Number(len) : null;
+        if (!r.ok) row.state = 'ERROR';
+      })
+      .catch(() => { row.http = 'net-fail'; row.state = 'ERROR'; });
   },
 
   watchGps: function () {
@@ -939,6 +954,7 @@ AFRAME.registerComponent('debug-placement', {
 
   remove: function () {
     clearInterval(this.renderTimer);
+    if (this.assetObserver) this.assetObserver.disconnect();
     if (this.gpsWatch != null) {
       try { navigator.geolocation.clearWatch(this.gpsWatch); } catch (e) { /* ignore */ }
     }

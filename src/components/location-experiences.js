@@ -17,8 +17,15 @@
  *   SAP Center       Party: dancing mascots + circling sharks + jumping shark,
  *                    with the visitor in the middle of the circle
  *
- * `?demoLocations=1` (or the desktop sim) offers every drop regardless of GPS.
+ * `?demoLocations=1` offers every drop regardless of GPS; in the desktop sim,
+ * `&at=littleitaly|river|finale` fakes standing at one.
+ *
+ * The heavy models behind these drops load on demand (model-assets.js): they
+ * start downloading when the visitor comes within range, so most taps land on
+ * a model that's already there.
  */
+import { prefetchModels } from '../utils/model-assets.js';
+
 /**
  * Real-world sizes, in metres. Models are normalized to these on load (see
  * model-normalize.js) — none of the source GLBs share a unit convention.
@@ -35,6 +42,13 @@ const JUMP_APEX_HEIGHT_M = 2.2; // top of the breach above the water — clears 
  * it isn't there.
  */
 const NEAR_RADIUS_M = 75;
+
+/**
+ * Once near, stay near until this much farther out. Without it, a visitor
+ * standing at the edge of the radius had the drop bar appear and vanish (and
+ * the "pick a drop" hint re-fire) every time the fix wandered a few metres.
+ */
+const NEAR_EXIT_MARGIN_M = 25;
 
 /**
  * The Pisa GLB is handed the wrong way round for us, so it gets mirrored on X.
@@ -109,6 +123,17 @@ const DROP_HINTS = {
   party: 'Tap the ground to drop a party'
 };
 
+/**
+ * Lazy asset ids (model-assets.js) each drop needs. The party's Maria and
+ * Jimmy reuse the wayfinding swimmers, which the page already loaded.
+ */
+const DROP_MODELS = {
+  athena: ['athena-point-right'],
+  tower: ['leaning-tower-model'],
+  river: ['diving-shark'],
+  party: ['diving-shark', 'circle-stella', 'photo-sharkie', 'photo-sammy']
+};
+
 AFRAME.registerComponent('location-experiences', {
   schema: {
     nearRadiusM: { type: 'number', default: NEAR_RADIUS_M }
@@ -122,6 +147,7 @@ AFRAME.registerComponent('location-experiences', {
     this.accuracy = null;
     this.selected = 'shark';
     this.available = ['shark'];
+    this.nearIds = new Set();  // locations currently "near", for the exit margin
     this.nearLabel = null;
     this.placed = {};          // drop id -> root entity, for drops that stay put
     this.partyTimer = null;
@@ -242,9 +268,13 @@ AFRAME.registerComponent('location-experiences', {
     LOCATIONS.forEach((loc) => {
       const d = this.userLat == null ? Infinity : this.distanceTo(loc, this.userLat, this.userLng);
       if (!nearest || d < nearest.d) nearest = { loc, d };
-      if (this.unlockAll || d <= this.data.nearRadiusM) {
+      const radius = this.data.nearRadiusM + (this.nearIds.has(loc.id) ? NEAR_EXIT_MARGIN_M : 0);
+      const isNear = d <= radius;
+      if (isNear) this.nearIds.add(loc.id);
+      else this.nearIds.delete(loc.id);
+      if (this.unlockAll || isNear) {
         loc.drops.forEach((id) => available.push(id));
-        if (d <= this.data.nearRadiusM) near = loc;
+        if (isNear) near = loc;
       }
     });
 
@@ -252,6 +282,8 @@ AFRAME.registerComponent('location-experiences', {
     this.available = available;
     this.nearLabel = near ? near.label : null;
     if (!available.includes(this.selected)) this.selected = 'shark';
+    // Start downloading what's on offer now, so the tap doesn't wait on it.
+    if (changed) available.forEach((id) => prefetchModels(DROP_MODELS[id]));
 
     const acc = typeof this.accuracy === 'number' ? ` ±${Math.round(this.accuracy)}m` : '';
     if (this.userLat == null) {
@@ -265,6 +297,10 @@ AFRAME.registerComponent('location-experiences', {
     if (changed) {
       this.renderDropBar();
       if (near) this.flashHint(`${near.label} — pick a drop below, then tap the ground`);
+      // Photo Mode offers Athena only here; it listens for this.
+      window.dispatchEvent(new CustomEvent('sharksWayDropsChanged', {
+        detail: { available: available.slice() }
+      }));
     }
   },
 
@@ -312,13 +348,13 @@ AFRAME.registerComponent('location-experiences', {
     return true;
   },
 
-  flashHint: function (text) {
+  flashHint: function (text, ms = 3500) {
     const el = document.getElementById('tap-instruction');
     if (!el) return;
     el.textContent = text;
     el.classList.add('visible');
     clearTimeout(this._hintTimer);
-    this._hintTimer = setTimeout(() => el.classList.remove('visible'), 3500);
+    this._hintTimer = setTimeout(() => el.classList.remove('visible'), ms);
   },
 
   // ---- Tap handling ---------------------------------------------------------
@@ -356,6 +392,8 @@ AFRAME.registerComponent('location-experiences', {
   },
 
   drop: function (id, point) {
+    // Normally prefetched on arrival; this covers demo unlocks and debug drops.
+    prefetchModels(DROP_MODELS[id]);
     if (id === 'athena') this.placeAthena(point);
     else if (id === 'tower') this.placeTower(point);
     else if (id === 'river') this.playJump(point, this.riverWaterY);
@@ -446,6 +484,22 @@ AFRAME.registerComponent('location-experiences', {
     return el;
   },
 
+  /**
+   * Say what's happening to a placed model: "Loading…" while its file is still
+   * downloading (a first tap near a location can beat the prefetch), then
+   * `doneText`; and a retry hint if it fails, instead of an empty spot.
+   */
+  announce: function (el, assetId, name, doneText) {
+    const item = document.getElementById(assetId);
+    const pending = item && !item.hasLoaded;
+    this.flashHint(pending ? `Loading ${name}…` : doneText, pending ? 30000 : undefined);
+    if (pending) el.addEventListener('model-loaded', () => this.flashHint(doneText), { once: true });
+    el.addEventListener('model-error', () => {
+      console.warn(`[location-experiences] ${name} failed to load`);
+      this.flashHint(`${name} didn't load — check your connection and tap again`);
+    }, { once: true });
+  },
+
   // ---- Little Italy: Athena + tower -----------------------------------------
 
   /** One Athena; tapping again moves her. */
@@ -454,8 +508,8 @@ AFRAME.registerComponent('location-experiences', {
     const root = this.makeDropRoot('athena', point);
 
     const ent = document.createElement('a-entity');
-    // shared-gltf, not gltf-model: one parse per file with textures downsampled
-    // once — the raw Athena textures are what crashed older phones.
+    // shared-gltf, not gltf-model: one parse per file, with the texture cap as
+    // a guard — the original export's 4K maps are what crashed older phones.
     ent.setAttribute('shared-gltf', `src: #athena-point-right; maxTexture: ${STATUE_MAX_TEXTURE_PX}`);
     ent.setAttribute('shadow', 'cast: true');
     // Raw GLB is 206 m tall.
@@ -470,7 +524,7 @@ AFRAME.registerComponent('location-experiences', {
     root.appendChild(ent);
     this.el.appendChild(root);
     this.placed.athena = root;
-    this.flashHint('Athena placed — tap again to move her');
+    this.announce(ent, 'athena-point-right', 'Athena', 'Athena placed — tap again to move her');
   },
 
   /** One tower; tapping again moves it. Stays until moved so visitors can walk around it. */
@@ -507,15 +561,10 @@ AFRAME.registerComponent('location-experiences', {
         });
       }, { once: true });
     }
-    tower.addEventListener('model-error', () => {
-      console.warn('[location-experiences] Failed to load Leaning_Tower_of_Pisa.glb');
-      this.setStatus('Tower model failed to load');
-    }, { once: true });
-
     root.appendChild(tower);
     this.el.appendChild(root);
     this.placed.tower = root;
-    this.flashHint('Leaning Tower placed — walk around it');
+    this.announce(tower, 'leaning-tower-model', 'the Leaning Tower', 'Leaning Tower placed — walk around it');
   },
 
   // ---- Jumping shark --------------------------------------------------------
@@ -599,13 +648,21 @@ AFRAME.registerComponent('location-experiences', {
     ent.addEventListener('shark-breach-exit', splashAt);
     ent.addEventListener('shark-breach-entry', splashAt);
 
+    // Each jump finishes once. Without the flag, the fallback timer of a jump
+    // that had already ended cleared jumpBusy halfway through the *next* one.
+    let done = false;
     const finish = () => {
+      if (done) return;
+      done = true;
       if (root.parentNode) root.parentNode.removeChild(root);
       this.jumpBusy = false;
     };
     ent.addEventListener('animation-finished', () => setTimeout(finish, 300), { once: true });
-    // Never strand the jump in a busy state if the clip fails to load.
-    setTimeout(finish, 9000);
+    ent.addEventListener('model-error', finish, { once: true });
+    // Never strand the jump busy if the clip doesn't report finishing. Timed
+    // from the model arriving, so a slow first download can't cut it short.
+    ent.addEventListener('model-loaded', () => setTimeout(finish, 9000), { once: true });
+    setTimeout(finish, 30000);
   },
 
   // ---- SAP party ------------------------------------------------------------
@@ -628,10 +685,11 @@ AFRAME.registerComponent('location-experiences', {
     circleRoot.setAttribute('data-drop-root', 'party');
     circleRoot.setAttribute('position', `${me.x} 0 ${me.z}`);
 
+    // Maria and Jimmy are the wayfinding swimmers the page already loaded.
     const sharks = [
-      { id: 'maria', model: '#circle-maria', phase: 0, lane: 0 },
+      { id: 'maria', model: '#maria-swimmer', phase: 0, lane: 0 },
       { id: 'stella', model: '#circle-stella', phase: 120, lane: -1.2 },
-      { id: 'jimmy', model: '#circle-jimmy', phase: 240, lane: 1.2 }
+      { id: 'jimmy', model: '#jimmy-swimmer', phase: 240, lane: 1.2 }
     ];
     sharks.forEach((s) => {
       const ent = document.createElement('a-entity');

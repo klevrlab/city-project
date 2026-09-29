@@ -1,9 +1,12 @@
 name: Deploy to GitHub Pages
 
+# Production is whatever main last deployed. GitHub Pages hosts one site, so a
+# "preview" deploy from another branch would replace it — and the github-pages
+# environment only admits main anyway, so branch pushes just failed here.
 on:
   push:
     branches:
-      - '**'  # Deploy from any branch (feature previews)
+      - main
   workflow_dispatch:
 
 permissions:

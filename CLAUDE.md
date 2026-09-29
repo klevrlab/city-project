@@ -65,13 +65,13 @@ city-project/
 
 | Layer | Library | Version |
 |---|---|---|
-| WebAR | 8th Wall WebAR | cloud key required |
+| WebAR | 8th Wall engine-binary + xrextras | 1.0.0 (pinned) |
 | WebAR fallback | AR.js | 3.4.5 |
 | 3D scenes | A-Frame | 1.6.0 |
 | AI detection | TensorFlow.js + MobileNet v2 | 4.22.0 |
 | 3D model viewer | model-viewer | 3.4.0 |
 | Maps | Leaflet.js | 1.9.4 |
-| Pose tracking | MediaPipe Pose | latest CDN |
+| Pose tracking | MediaPipe Pose | 0.5.1675469404 (pinned) |
 | Build | Vite | ^8.0.13 |
 
 ## Key Design Decisions
@@ -93,6 +93,21 @@ city-project/
 5. **mural-ar.html** — Japantown Living Mural: open-source MindAR image tracking + GPS gate (single compiled target — the front relief — in `assets/targets/japan-am.mind`; multiple similar bronze panels cross-matched and caused phantom locks). Loads a **custom loose-threshold MindAR build** (`assets/vendor/mindar-image-aframe.custom.js`, rebuilt via `npm run build-tracker` in `tools/mind-compile/`) — detection/tracking confidence gates are deliberately permissive ("always shows something" > "always the right panel"), and `mural-plane.js` holds the last pose for 2.5s after tracking drops.
 
 > Note: the AR.js marker demo (`marker-demo.html`) was removed during the Phase II consolidation.
+
+## Model Loading
+
+Only the wayfinding swimmers (Maria, Jimmy) are `<a-asset-item>`s in `shark-ar-8thwall.html`.
+Everything else (Photo Mode mascots, Athena, tower, jump shark, Stella) is registered in
+`src/utils/model-assets.js` and fetched when GPS puts the visitor near the location that uses it
+(or Photo Mode opens); call `ensureModel(id)` before setting `gltf-model="#id"`. Startup download
+went from ~57 MB to ~6 MB.
+
+Optimized GLBs (originals in git history): Athena textures resized to 1024
+(`npx @gltf-transform/cli resize in.glb out.glb --width 1024 --height 1024`); tower and Stella
+Draco-compressed (`npx @gltf-transform/cli draco in.glb out.glb`). Re-run after any re-export.
+
+**Athena in Photo Mode:** a third chip appears only while the Little Italy drop is on offer;
+2.5 m tall, placed 2.5–5 m out, and on the shoulder in front-camera selfie.
 
 ## 3D Models (assets/3D-models/)
 
@@ -268,6 +283,11 @@ wrong — Sharkie at "1.9 m" rendered ~7 m tall, half underground.
 - CSS is per-page (e.g. `src/css/shark-ar-8thwall-styles.css` for `shark-ar-8thwall.html`) plus `shared-styles.css`.
 - `src/app.js` is the 8th Wall entry point; other HTML pages inline or script-tag their own logic.
 - `8w-distributed-engine/` is currently a placeholder (`.gitkeep`).
+- Deploy: `.github/workflows/deploy-pages.yml` builds and deploys **main only** to GitHub Pages.
+  Pages settings still list `feat/soccer-8thwall-prototype` as a legacy source — **don't push that
+  branch** (a legacy build would replace the site with unbuilt source) until an admin sets
+  Settings → Pages → Source to "GitHub Actions".
+- `sharks-way-dist` launch config serves the production build (`vite preview`, :4173).
 - Docs: `ARCHITECTURE.md` (system design), `DEPLOYMENT.md` (hosting guide).
 
 ## Git Workflow

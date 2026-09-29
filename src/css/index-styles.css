@@ -95,6 +95,16 @@
             padding-left: 20px;
             line-height: 1.8;
         }
+        .credits {
+            margin-top: 20px;
+            color: #888;
+            font-size: 11px;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .credits a {
+            color: #006D75;
+        }
         .icon {
             width: clamp(186px, 37.18vw, 338px);
             height: auto;

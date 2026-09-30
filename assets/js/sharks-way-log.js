@@ -490,11 +490,12 @@
     btn.type = 'button';
     btn.textContent = 'LOG';
     btn.setAttribute('aria-label', 'Field log');
-    btn.style.cssText = css + 'left:12px;bottom:16px;padding:8px 12px;border-radius:999px;' +
+    // Above the drop / photo bars (they reach ~115 px up) and the tap hint.
+    btn.style.cssText = css + 'left:12px;bottom:150px;padding:8px 12px;border-radius:999px;' +
       'border:1px solid rgba(255,196,0,.7);background:rgba(40,30,0,.8);color:#ffd54a;';
     var sheet = document.createElement('div');
     sheet.id = 'swlog-sheet';
-    sheet.style.cssText = css + 'left:12px;right:12px;bottom:64px;display:none;padding:12px;' +
+    sheet.style.cssText = css + 'left:12px;right:12px;bottom:196px;display:none;padding:12px;' +
       'border-radius:14px;background:rgba(10,14,18,.95);color:#fff;border:1px solid rgba(255,196,0,.5);';
     sheet.innerHTML =
       '<div style="margin-bottom:6px">Field log — for the dev team</div>' +

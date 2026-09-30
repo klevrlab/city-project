@@ -57,9 +57,36 @@
     return out.crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
   }
 
+  /**
+   * Scene units per real metre, estimated from how high the phone is now.
+   *
+   * 8th Wall's default ("responsive") scale does not work in metres: it puts
+   * the camera 1.6 units above the floor on the first frame, however high the
+   * phone really was. Open the page with the phone at waist height and a unit
+   * is ~0.65 m, so a "1.9 m" Sharkie stands ~1.2 m tall — the Sept 30 test run
+   * read the camera at 2.4 units ("Sharkie is kinda small"), and Rhonda's
+   * "mascot small (sometimes)" is the same thing: it depends on the pose the
+   * page happened to start in.
+   *
+   * People view AR with the phone at roughly PHONE_HEIGHT_M, so the camera's
+   * height in units right now divided by that is units-per-metre. Multiply a
+   * real-world size or distance by this. Clamped, so a crouch or an arm held
+   * overhead can't make content absurd. In the desktop sim (camera at 1.6)
+   * it's ~1.1.
+   */
+  const PHONE_HEIGHT_M = 1.45;
+  function unitsPerMetre(cameraEl) {
+    if (!cameraEl || !cameraEl.object3D) return 1;
+    const y = cameraEl.object3D.getWorldPosition(new THREE.Vector3()).y;
+    if (!(y > 0)) return 1;
+    return Math.min(Math.max(y / PHONE_HEIGHT_M, 0.8), 2.2);
+  }
+
   global.MathUtils = {
     haversineMeters: haversineMeters,
     cameraForward: cameraForward,
-    cameraRight: cameraRight
+    cameraRight: cameraRight,
+    unitsPerMetre: unitsPerMetre,
+    PHONE_HEIGHT_M: PHONE_HEIGHT_M
   };
 })(typeof window !== 'undefined' ? window : globalThis);

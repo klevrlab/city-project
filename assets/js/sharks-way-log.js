@@ -54,6 +54,7 @@
   if (!enabled) {
     window.SharksWayLog = {
       enabled: false, add: noop, mark: noop, save: noop, clear: noop,
+      askNote: function (t, cb) { if (cb) cb(null); },
       download: noop, share: noop, text: function () { return ''; },
       entries: function () { return []; }
     };
@@ -267,17 +268,64 @@
     add('page', 'log cleared');
   }
 
-  function mark() {
-    var note = '';
-    try { note = window.prompt('What just happened? (optional — goes in the log)', '') || ''; } catch (e) { /* ignore */ }
-    add('mark', '★ ' + (note || 'marked'));
-    save();
+  /**
+   * A note box drawn in the page — never window.prompt / confirm / alert. On
+   * iPhone a native dialog stalls the 8th Wall camera feed until the phone is
+   * locked and unlocked: in the Sept 29 and Sept 30 logs every "camera froze"
+   * came right after a Mark / ✗ note prompt, and "turning the phone to sleep
+   * and back fixed the camera". cb(text) on Save, cb(null) on Cancel.
+   */
+  function askNote(title, cb) {
+    var old = document.getElementById('swlog-note');
+    if (old) old.remove();
+    var font = 'font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;';
+    var box = document.createElement('div');
+    box.id = 'swlog-note';
+    box.style.cssText = 'position:fixed;left:12px;right:12px;top:70px;z-index:2147483600;padding:12px;' +
+      'border-radius:14px;background:rgba(10,14,18,.97);color:#fff;border:1px solid rgba(255,196,0,.6);' + font;
+    var btn = 'padding:9px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);color:#fff;' + font;
+    box.innerHTML = '<div style="margin-bottom:8px"></div>' +
+      '<textarea rows="3" style="width:100%;box-sizing:border-box;border-radius:8px;border:1px solid #555;' +
+      'background:#0b1116;color:#fff;padding:8px;font:400 15px -apple-system,sans-serif"></textarea>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">' +
+      '<button type="button" data-n="cancel" style="' + btn + 'background:transparent">Cancel</button>' +
+      '<button type="button" data-n="save" style="' + btn + 'background:rgba(255,196,0,.35)">Save note</button></div>';
+    box.firstChild.textContent = title;
+    var ta = box.querySelector('textarea');
+    function done(value) {
+      box.remove();
+      try { cb(value); } catch (e) { /* ignore */ }
+    }
+    box.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var n = e.target && e.target.getAttribute && e.target.getAttribute('data-n');
+      if (n === 'save') done(ta.value.trim());
+      else if (n === 'cancel') done(null);
+    });
+    document.body.appendChild(box);
+    try { ta.focus(); } catch (e) { /* ignore */ }
+  }
+
+  /** Log a ★ mark. With a note string it's immediate; without, it asks in-page. */
+  function mark(note) {
+    if (typeof note === 'string') {
+      add('mark', '★ ' + (note || 'marked'));
+      save();
+      return;
+    }
+    var at = new Date().toTimeString().slice(0, 8);
+    askNote('What just happened? (goes in the log)', function (text) {
+      if (text === null) return;
+      add('mark', '★ ' + (text || 'marked') + ' (marked at ' + at + ')');
+      save();
+    });
   }
 
   window.SharksWayLog = {
     enabled: true,
     add: add,
     mark: mark,
+    askNote: askNote,
     save: function () { dirty = true; save(); },
     clear: clear,
     download: download,
@@ -521,7 +569,15 @@
       if (act === 'mark') mark();
       else if (act === 'share') share();
       else if (act === 'download') download();
-      else if (act === 'clear') { if (window.confirm('Delete the stored log on this phone?')) clear(); }
+      else if (act === 'clear') {
+        // Two taps, no window.confirm (native dialogs freeze the camera on iPhone).
+        if (e.target.getAttribute('data-armed') === '1') clear();
+        else {
+          e.target.setAttribute('data-armed', '1');
+          e.target.textContent = 'Tap again to delete';
+          return;
+        }
+      }
       if (act === 'close' || act === 'share' || act === 'download') {
         panel.open = false;
         sheet.style.display = 'none';

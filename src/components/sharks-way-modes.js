@@ -178,7 +178,13 @@ function clearPhotoMascot() {
   state.photoEntity = null;
 }
 
-function spawnPhotoMascot(point, facingYaw) {
+/** Scene units per real metre now — see MathUtils.unitsPerMetre. */
+function unitsPerMetre() {
+  const cam = document.getElementById('camera');
+  return window.MathUtils && window.MathUtils.unitsPerMetre ? window.MathUtils.unitsPerMetre(cam) : 1;
+}
+
+function spawnPhotoMascot(point, facingYaw, k = unitsPerMetre()) {
   const root = document.getElementById('photo-root');
   if (!root) return;
   clearPhotoMascot();
@@ -196,6 +202,9 @@ function spawnPhotoMascot(point, facingYaw) {
   // Sharkie is 1.95 m in its GLB, Sammy 2.96 m and Athena 206 m, and the
   // mascots float above their origin — normalize so photos frame consistently.
   ent.setAttribute('model-normalize', `height: ${c.heightM}`);
+  // heightM is metres; 8th Wall's default scale isn't — "Sharkie is kinda
+  // small" on Sept 30 was a phone that opened the page held low.
+  ent.setAttribute('scale', `${k} ${k} ${k}`);
   ent.setAttribute('shadow', 'cast: true');
   reportModelLoad(ent, c, !item || item.hasLoaded);
   root.appendChild(ent);
@@ -224,11 +233,13 @@ function placePhotoMascot(tapPoint, { quiet = false } = {}) {
     } else {
       toPoint.divideScalar(d);
     }
+    const k = unitsPerMetre();
     const tapped = d;
-    d = Math.min(Math.max(d, c.minM), c.maxM);
+    d = Math.min(Math.max(d, c.minM * k), c.maxM * k);
     point.set(camPos.x + toPoint.x * d, 0, camPos.z + toPoint.z * d);
-    fieldLog('photo', `place ${c.label} at ${d.toFixed(1)}m` +
-      (Math.abs(tapped - d) > 0.05 ? ` (tap was ${tapped.toFixed(1)}m)` : ''));
+    fieldLog('photo', `place ${c.label} at ${(d / k).toFixed(1)}m` +
+      (Math.abs(tapped - d) > 0.05 ? ` (tap was ${(tapped / k).toFixed(1)}m)` : '') +
+      ` · scale ${k.toFixed(2)} units/m (camera ${camPos.y.toFixed(2)} units up)`);
 
     // Models face +Z: aim +Z from the mascot back at the camera. The old math
     // aimed it along the tap ray, i.e. facing away from the photographer.

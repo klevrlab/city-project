@@ -92,6 +92,11 @@ AFRAME.registerComponent('model-normalize', {
     const size = new THREE.Vector3();
     box.getSize(size);
     if (!isFinite(size.y) || size.y <= 0) return;
+    // Size in the entity's own units, not the world's: drops scale their root
+    // to real metres (MathUtils.unitsPerMetre), and measuring in world space
+    // would quietly undo that. Identical to before for unscaled parents.
+    const ws = this.el.object3D.getWorldScale(new THREE.Vector3());
+    size.set(size.x / (Math.abs(ws.x) || 1), size.y / (Math.abs(ws.y) || 1), size.z / (Math.abs(ws.z) || 1));
 
     let factor = 1;
     if (this.data.height > 0) {
@@ -110,11 +115,16 @@ AFRAME.registerComponent('model-normalize', {
     }
 
     if (this.data.ground) {
+      // Feet on the *entity's* floor (local y = 0), not the world's. Grounding
+      // to world y = 0 was wrong for anything that loads away from the floor:
+      // Athena and the tower load buried (they rise out of the ground), got
+      // pushed up by exactly that depth, and finished the rise 2.6 m / 8.4 m
+      // in the air. Same result as before for entities standing at y = 0.
       const grounded = this.measure(mesh);
-      // setFromObject is in world space; convert the lift into mesh-parent units.
-      const worldScale = this.el.object3D.getWorldScale(new THREE.Vector3());
-      const lift = grounded.min.y / (worldScale.y || 1);
-      mesh.position.y -= lift;
+      const low = this.el.object3D.getWorldPosition(new THREE.Vector3());
+      low.y = grounded.min.y;
+      this.el.object3D.worldToLocal(low);
+      mesh.position.y -= low.y;
     }
 
     this.applied = true;

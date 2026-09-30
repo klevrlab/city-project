@@ -301,6 +301,28 @@ To get a log: `shark-ar-8thwall.html?debug=1` → 🛠 → **LOG** → SHARE LOG
 Files) or DOWNLOAD; **MARK A MOMENT** drops a note into the log when something looks wrong. On other
 pages (or with `?log=1`) a small **LOG** button sits bottom-left with the same actions.
 
+## Real-world scale (read this before sizing anything)
+
+8th Wall's default ("responsive") scale is **not metres**: it puts the camera 1.6 units above the
+floor on the first frame, however high the phone really was. Open the page holding the phone at
+waist height and a unit is ~0.65 m — the Sept 30 test run read the camera at 2.4 units, and
+"Sharkie is kinda small" / Rhonda's "mascot small (sometimes)" is exactly this. So sizes and
+distances written in metres are multiplied by `MathUtils.unitsPerMetre(camera)` (camera height in
+units ÷ 1.45 m typical phone height, clamped 0.8–2.2) **at the moment of the drop**: drop roots,
+Photo Mode mascots, drop distances, the jump and the party. The field log prints it on every drop
+("scale 1.66 units/m (camera 2.40 units up)"). `model-normalize` sizes in the entity's *local*
+units so a scaled parent isn't undone, and grounds to the entity's own floor (local y = 0).
+Wayfinding swim-throughs and the dropped Jimmy are not rescaled (tuned as they are).
+
+## No native dialogs on the AR pages
+
+Never `window.prompt` / `confirm` / `alert` on the 8th Wall page: on iPhone a native dialog stalls
+the camera feed until the phone is locked and unlocked. Every "camera froze" in the Sept 29–30 logs
+followed a note prompt. Notes use `SharksWayLog.askNote(title, cb)` (an in-page box); destructive
+buttons take a second tap. `src/utils/camera-watchdog.js` restarts the camera (XR8.pause/resume)
+if the 8th Wall video's currentTime stops for 3 s while the page is visible — the log line is
+"camera feed stalled … restarting camera".
+
 ## At-home Test Run (`?test=1`)
 
 `shark-ar-8thwall.html?test=1` — a guided checklist card (`src/components/test-run.js`) over every
@@ -311,6 +333,7 @@ up** button switches mode / picks the drop itself. ✓ / ✗ (prompts for a note
 with measurements taken at that moment — distance, rendered height, base/top vs eye height, fps,
 GPU memory — failures as `★ TEST FAIL` marks. `?test=1` also turns the field log on and unlocks
 every drop without GPS. Progress survives a reload (sessionStorage). Share the log at the end.
+Measurements print ≈metres (units ÷ unitsPerMetre) plus the raw units, eye height and scale.
 Not covered: painted-shark scanning (needs the paintings).
 
 ## Placement Debug Mode
@@ -339,7 +362,17 @@ so its +Z faces the visitor), not world coordinates — so a saved tweak is "rel
 you tapped" and carries over to the next drop. `window.SharksWayDebug` exposes the same
 operations to the console.
 
-**Facing:** mascots, sharks and Athena all face **+Z** (verified in the desktop sim).
+**Facing:** mascots, Maria, Jimmy and Athena face **+Z**; **Stella faces −Z** (party ring uses
+`yawOffset: 180` for her — she swam tail-first before). Dropped Jimmy points the way the visitor
+faces, hovering at swim-through height (0.35).
+
+**Rise from the ground:** Athena and the tower rise out of the floor on drop
+(`riseFromGround`: a wrapper entity eases up from below, materials clipped at world y = 0 during
+the rise so the buried part doesn't show).
+
+**Splash:** `spawnSplash` — flat rings + droplets (`splash-drop`), sized in metres. Timed off the
+jump shark's `jaw` bone (dive-clip `headBone`): it leads; the `spine` bone is near the tail and
+fired ~0.5 s / 0.9 s late. Bone names lose their dots on load (`spine.007` → `spine007`).
 
 **Drop distances:** taps are pushed out to a minimum distance along the tapped line
 (`MIN_DROP_DISTANCE_M`: tower 12 m, river 8 m, Athena / party 3 m) and pulled in to 25 m.

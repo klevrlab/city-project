@@ -64,8 +64,11 @@ function describe(el, label) {
   const c = camPos();
   const ctr = b.getCenter(new THREE.Vector3());
   const size = b.getSize(new THREE.Vector3());
-  return `${label}: ${Math.hypot(ctr.x - c.x, ctr.z - c.z).toFixed(1)} m away, ` +
-    `${size.y.toFixed(2)} m tall, base ${b.min.y.toFixed(2)} m, top ${b.max.y.toFixed(2)} m (eye ${c.y.toFixed(2)} m)`;
+  // Scene units aren't metres under 8th Wall's default scale; report both.
+  const k = window.MathUtils && window.MathUtils.unitsPerMetre ? window.MathUtils.unitsPerMetre(camEl()) : 1;
+  const m = (v) => (v / k).toFixed(2);
+  return `${label}: ≈${(Math.hypot(ctr.x - c.x, ctr.z - c.z) / k).toFixed(1)} m away, ≈${m(size.y)} m tall, ` +
+    `base ${m(b.min.y)} m, top ${m(b.max.y)} m · raw units: ${size.y.toFixed(2)} tall, eye ${c.y.toFixed(2)}, ${k.toFixed(2)} units/m`;
 }
 
 function gpuInfo() {
@@ -378,14 +381,25 @@ function startTestRun() {
     }
   }
 
+  /** In-page note box (sharks-way-log.js) — window.prompt froze the camera on iPhone. */
+  function askNote(title) {
+    return new Promise((resolve) => {
+      const L = window.SharksWayLog;
+      if (L && L.askNote) L.askNote(title, resolve);
+      else resolve('');
+    });
+  }
+
   async function finish(result) {
     const s = STEPS[progress.i];
-    let note = '';
-    if (result === 'fail') {
-      try { note = window.prompt(`What went wrong with "${s.title}"?`, '') || ''; } catch (e) { /* ignore */ }
-    }
+    // Measure first, while the scene is still what the tester was looking at.
     let m = '';
     try { m = await s.measure(); } catch (e) { m = `measure failed: ${e.message}`; }
+    let note = '';
+    if (result === 'fail') {
+      note = await askNote(`What went wrong with "${s.title}"?`);
+      if (note === null) { render(); return; }   // Cancel: stay on this step
+    }
     const icon = { pass: '✓', fail: '✗', skip: '–' }[result];
     const line = `${icon} step ${progress.i + 1} ${s.id} — ${s.title}${note ? ' — "' + note + '"' : ''} · ${m}`;
     // Failures go in as marks (★) so they're easy to find in a long log.

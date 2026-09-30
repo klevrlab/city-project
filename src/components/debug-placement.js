@@ -173,10 +173,14 @@ AFRAME.registerComponent('debug-placement', {
         const L = window.SharksWayLog;
         if (!L || !L.enabled) { this.toast('Field log not loaded'); return; }
         const act = btn.getAttribute('data-log');
-        if (act === 'mark') { L.mark(); this.toast('Marked'); }
+        // No window.confirm / prompt here: native dialogs freeze the camera
+        // on iPhone (see askNote in sharks-way-log.js). Destructive actions
+        // take a second tap within 3 s instead.
+        if (act === 'mark') L.mark();
         else if (act === 'share') L.share();
         else if (act === 'download') L.download();
-        else if (act === 'clear' && window.confirm('Delete the stored log on this phone?')) {
+        else if (act === 'clear') {
+          if (!this.armed('log-clear')) { this.toast('Tap CLEAR again to delete the log'); return; }
           L.clear();
           this.toast('Log cleared');
         }
@@ -195,7 +199,7 @@ AFRAME.registerComponent('debug-placement', {
       this.toast(ok ? 'JSON copied to clipboard' : 'Clipboard blocked — use EXPORT');
     });
     wrap.querySelector('#dbg-wipe').addEventListener('click', () => {
-      if (!window.confirm('Clear all saved placement tweaks on this device?')) return;
+      if (!this.armed('wipe')) { this.toast('Tap again to clear all saved tweaks'); return; }
       window.PlacementOverrides.clearAll();
       this.toast('Local overrides cleared (reload to see defaults)');
       this.render();
@@ -224,6 +228,15 @@ AFRAME.registerComponent('debug-placement', {
       p.classList.toggle('dbg-hidden', p.getAttribute('data-pane') !== tab);
     });
     this.render();
+  },
+
+  /** True on the second tap of `key` within 3 s — a confirm without window.confirm. */
+  armed: function (key) {
+    const now = performance.now();
+    this._armed = this._armed || {};
+    const ok = this._armed[key] && now - this._armed[key] < 3000;
+    this._armed[key] = ok ? 0 : now;
+    return ok;
   },
 
   toast: function (msg) {

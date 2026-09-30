@@ -231,15 +231,18 @@ AFRAME.registerComponent('shark-animator', {
     const x = targetPoint.x;
     const z = targetPoint.z;
     const startY = -0.6;
-    const hoverY = 0.95;
+    // Same height as the swim-through sharks (experience y 0.28). At 0.95 it
+    // hovered above head height on a phone that started low — Sept 30 test
+    // run: "shark is floating", base 1.2 units up.
+    const hoverY = 0.35;
 
-    // Side-on to the viewer, nose to their right: a shark swimming forward in
-    // place. Nose-on it read as a shark swimming at you that never arrives.
+    // Nose pointing the way the visitor faces, swimming forward in place.
+    // Side-on read as "facing to the right and not forwards" (Sept 30).
     let facingYaw = 0;
     const cam = document.getElementById('camera');
     if (cam && window.MathUtils) {
-      const right = window.MathUtils.cameraRight(cam);
-      facingYaw = Math.atan2(right.x, right.z) * (180 / Math.PI);
+      const fwd = window.MathUtils.cameraForward(cam);
+      facingYaw = Math.atan2(fwd.x, fwd.z) * (180 / Math.PI);
     }
 
     const ent = document.createElement('a-entity');

@@ -194,6 +194,11 @@ AFRAME.registerComponent('shark-arc-jump', {
 AFRAME.registerComponent('dive-clip', {
   schema: {
     bone: { type: 'string', default: 'spine' },
+    // Splashes key off the head, which leads: 'spine' sits near the tail, and
+    // keyed off it the splashes came ~0.5 s (out) and ~0.9 s (back in) after
+    // the nose. (Bone names lose their dots on load — 'spine.007' is
+    // 'spine007' — so use a dot-free name or it silently falls back.)
+    headBone: { type: 'string', default: 'jaw' },
     apexHeightM: { type: 'number', default: 2.2 },  // 0 keeps the baked height
     // Ground covered from the first keyframe to the last. 0 scales it with the
     // height; set it to keep a low hop from turning into a slow crawl.
@@ -253,6 +258,9 @@ AFRAME.registerComponent('dive-clip', {
     this.base = mesh.position.clone();
     this.mesh = mesh;
     this.bone = bone;
+    this.head = mesh.getObjectByName(this.data.headBone) ||
+      mesh.getObjectByName(this.data.headBone.replace(/\./g, '')) || bone;
+    this.headRest = null;   // the head's swim-line height, taken on the first tick
     this.ready = true;
   },
 
@@ -268,16 +276,20 @@ AFRAME.registerComponent('dive-clip', {
     const kh = this.runScale - 1;
     const kv = this.pathScale - 1;
     this.mesh.position.set(this.base.x + raw.x * kh, this.base.y + raw.y * kv, this.base.z + raw.z * kh);
-    const local = raw.set(raw.x * this.runScale, raw.y * this.pathScale, raw.z * this.runScale);
+    // The mesh was just moved; measure the head where it will actually draw.
+    this.mesh.updateMatrixWorld(true);
+    const head = obj.worldToLocal(this.head.getWorldPosition(new THREE.Vector3()));
+    if (this.headRest === null) this.headRest = head.y;
     const up = this.data.splashAboveM;
+    const rise = head.y - this.headRest;
 
     let type = null;
-    if (!this.airborne && local.y > up) type = 'shark-breach-exit';
-    else if (this.airborne && local.y < up * 0.5) type = 'shark-breach-entry';
+    if (!this.airborne && rise > up) type = 'shark-breach-exit';
+    else if (this.airborne && rise < up * 0.5) type = 'shark-breach-entry';
     if (!type) return;
 
     this.airborne = !this.airborne;
-    local.y = 0;
-    this.el.emit(type, { position: obj.localToWorld(local).clone() });
+    head.y = 0;
+    this.el.emit(type, { position: obj.localToWorld(head).clone() });
   }
 });

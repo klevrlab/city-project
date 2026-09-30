@@ -160,6 +160,27 @@ const DROP_MODELS = {
   party: ['diving-shark', 'circle-stella', 'photo-sharkie', 'photo-sammy']
 };
 
+/** One splash droplet: thrown up, falls back, fades. Local units = metres. */
+AFRAME.registerComponent('splash-drop', {
+  schema: {
+    vx: { type: 'number', default: 0 },
+    vy: { type: 'number', default: 2.5 },
+    vz: { type: 'number', default: 0 },
+    life: { type: 'number', default: 900 }   // ms
+  },
+  init: function () { this.t = 0; },
+  tick: function (time, delta) {
+    if (!delta) return;
+    this.t += delta;
+    const t = this.t / 1000;
+    const d = this.data;
+    this.el.object3D.position.set(d.vx * t, Math.max(0, d.vy * t - 4.9 * t * t), d.vz * t);
+    const mesh = this.el.getObject3D('mesh');
+    if (mesh && mesh.material) mesh.material.opacity = Math.max(0, 0.9 * (1 - this.t / d.life));
+    if (this.t > d.life) this.el.object3D.visible = false;
+  }
+});
+
 AFRAME.registerComponent('location-experiences', {
   schema: {
     nearRadiusM: { type: 'number', default: NEAR_RADIUS_M }
@@ -416,7 +437,19 @@ AFRAME.registerComponent('location-experiences', {
     let pt = e.detail && e.detail.intersection && e.detail.intersection.point;
     if (!pt) return;
     if (this.selected === 'river') pt = this.onWater(pt);
-    this.drop(this.selected, this.clampDrop(pt, this.selected));
+    const k = this.unitsPerMetre();
+    this.drop(this.selected, this.clampDrop(pt, this.selected, k), k);
+  },
+
+  /**
+   * Scene units per real metre right now (MathUtils.unitsPerMetre): 8th Wall's
+   * default scale isn't metric, so every size and distance below — written in
+   * metres — is multiplied by this at the moment of the drop.
+   */
+  unitsPerMetre: function () {
+    const cam = document.getElementById('camera');
+    return window.MathUtils && window.MathUtils.unitsPerMetre
+      ? window.MathUtils.unitsPerMetre(cam) : 1;
   },
 
   /**
@@ -437,14 +470,14 @@ AFRAME.registerComponent('location-experiences', {
    * Keep a drop between its minimum distance and MAX_DROP_DISTANCE_M from the
    * visitor, along the line they tapped. Returns a ground-level point.
    */
-  clampDrop: function (point, id) {
+  clampDrop: function (point, id, k = 1) {
     const cam = document.getElementById('camera');
     if (!cam) return new THREE.Vector3(point.x, 0, point.z);
     const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
     const flat = new THREE.Vector3(point.x - origin.x, 0, point.z - origin.z);
     const d = flat.length();
-    const min = MIN_DROP_DISTANCE_M[id] || 0;
-    let target = Math.min(Math.max(d, min), MAX_DROP_DISTANCE_M);
+    const min = (MIN_DROP_DISTANCE_M[id] || 0) * k;
+    let target = Math.min(Math.max(d, min), MAX_DROP_DISTANCE_M * k);
     if (d < 0.01) {
       // Straight down at the feet: go the way the visitor is facing.
       if (window.MathUtils) window.MathUtils.cameraForward(cam, flat);
@@ -462,21 +495,25 @@ AFRAME.registerComponent('location-experiences', {
     if (!cam || !window.MathUtils) return false;
     const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
     const fwd = window.MathUtils.cameraForward(cam);
-    const d = distanceM || (id === 'tower' ? 14 : id === 'river' ? 10 : 5);
-    this.drop(id, new THREE.Vector3(origin.x + fwd.x * d, 0, origin.z + fwd.z * d));
+    const k = this.unitsPerMetre();
+    const d = (distanceM || (id === 'tower' ? 14 : id === 'river' ? 10 : 5)) * k;
+    this.drop(id, new THREE.Vector3(origin.x + fwd.x * d, 0, origin.z + fwd.z * d), k);
     return true;
   },
 
-  drop: function (id, point) {
+  drop: function (id, point, k = this.unitsPerMetre()) {
     const cam = document.getElementById('camera');
     const from = cam ? cam.object3D.getWorldPosition(new THREE.Vector3()) : null;
-    fieldLog('drop', `${id}` + (from ? ` ${Math.hypot(point.x - from.x, point.z - from.z).toFixed(1)}m from camera` : ''));
+    fieldLog('drop', `${id}` + (from
+      ? ` ${(Math.hypot(point.x - from.x, point.z - from.z) / k).toFixed(1)}m from camera` +
+        ` · scale ${k.toFixed(2)} units/m (camera ${from.y.toFixed(2)} units up)`
+      : ''));
     // Normally prefetched on arrival; this covers demo unlocks and debug drops.
     prefetchModels(DROP_MODELS[id]);
-    if (id === 'athena') this.placeAthena(point);
-    else if (id === 'tower') this.placeTower(point);
-    else if (id === 'river') this.playJump(point, this.riverWaterY);
-    else if (id === 'party') this.dropParty(point);
+    if (id === 'athena') this.placeAthena(point, k);
+    else if (id === 'tower') this.placeTower(point, k);
+    else if (id === 'river') this.playJump(point, this.riverWaterY, k);
+    else if (id === 'party') this.dropParty(point, k);
     else if (id === 'shark') {
       const sr = document.getElementById('shark-root');
       const anim = sr && sr.components['shark-animator'];
@@ -502,10 +539,12 @@ AFRAME.registerComponent('location-experiences', {
    * placed at the origin with no rotation therefore face the visitor, and a
    * debug-panel override saved on them is an offset from wherever the tap was.
    */
-  makeDropRoot: function (id, point) {
+  makeDropRoot: function (id, point, k = 1) {
     const root = document.createElement('a-entity');
     root.setAttribute('data-drop-root', id);
     root.setAttribute('position', `${point.x} 0 ${point.z}`);
+    // Everything under the root is authored in metres; this makes them metres.
+    root.setAttribute('scale', `${k} ${k} ${k}`);
     const cam = document.getElementById('camera');
     if (cam) {
       const c = cam.object3D.getWorldPosition(new THREE.Vector3());
@@ -586,10 +625,47 @@ AFRAME.registerComponent('location-experiences', {
 
   // ---- Little Italy: Athena + tower -----------------------------------------
 
+  /**
+   * Rise out of the ground: start the model a little more than its own height
+   * below the floor and ease it up, clipping everything under the floor line
+   * so the buried part doesn't show through the camera image. (Sept 30 test
+   * run: "Athena does not have an animation coming out of the ground".)
+   */
+  riseFromGround: function (ent, heightM, durMs) {
+    // A wrapper does the moving, so the model's own position (placement
+    // overrides included) is never read or touched. Reading it before the
+    // entity is attached returns junk — the first version floated Athena
+    // 2.6 m up instead of raising her to the ground.
+    const lift = document.createElement('a-entity');
+    lift.setAttribute('position', `0 ${-(heightM * 1.05)} 0`);
+    lift.appendChild(ent);
+    const scene = this.el.sceneEl;
+    const floor = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];   // keep world y >= 0
+    const setClip = (planes) => {
+      const mesh = ent.getObject3D('mesh');
+      if (!mesh) return;
+      if (scene.renderer) scene.renderer.localClippingEnabled = true;
+      mesh.traverse((o) => {
+        if (!o.isMesh || !o.material) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+          m.clippingPlanes = planes;
+          m.clipShadows = !!planes;
+          m.needsUpdate = true;
+        });
+      });
+    };
+    ent.addEventListener('model-loaded', () => {
+      setClip(floor);
+      lift.setAttribute('animation__rise', { property: 'position', to: '0 0 0', dur: durMs, easing: 'easeOutCubic' });
+      lift.addEventListener('animationcomplete__rise', () => setClip(null), { once: true });
+    }, { once: true });
+    return lift;
+  },
+
   /** One Athena; tapping again moves her. */
-  placeAthena: function (point) {
+  placeAthena: function (point, k = 1) {
     this.clearPlaced('athena');
-    const root = this.makeDropRoot('athena', point);
+    const root = this.makeDropRoot('athena', point, k);
 
     const ent = document.createElement('a-entity');
     // shared-gltf, not gltf-model: one parse per file, with the texture cap as
@@ -605,16 +681,16 @@ AFRAME.registerComponent('location-experiences', {
       rotation: { x: 0, y: 0, z: 0 },
       scale: '1 1 1'
     });
-    root.appendChild(ent);
+    root.appendChild(this.riseFromGround(ent, STATUE_HEIGHT_M, 1600));
     this.el.appendChild(root);
     this.placed.athena = root;
     this.announce(ent, 'athena-point-right', 'Athena', 'Athena placed — tap again to move her');
   },
 
   /** One tower; tapping again moves it. Stays until moved so visitors can walk around it. */
-  placeTower: function (point) {
+  placeTower: function (point, k = 1) {
     this.clearPlaced('tower');
-    const root = this.makeDropRoot('tower', point);
+    const root = this.makeDropRoot('tower', point, k);
 
     const tower = document.createElement('a-entity');
     tower.setAttribute('id', 'leaning-tower');
@@ -645,7 +721,7 @@ AFRAME.registerComponent('location-experiences', {
         });
       }, { once: true });
     }
-    root.appendChild(tower);
+    root.appendChild(this.riseFromGround(tower, TOWER_HEIGHT_M, 2600));
     this.el.appendChild(root);
     this.placed.tower = root;
     this.announce(tower, 'leaning-tower-model', 'the Leaning Tower', 'Leaning Tower placed — walk around it');
@@ -654,40 +730,54 @@ AFRAME.registerComponent('location-experiences', {
   // ---- Jumping shark --------------------------------------------------------
 
   /**
-   * Expanding water ring where the shark breaks or re-enters the surface.
-   * Stand-in until Rhonda's splash model lands — swap the primitives for the
-   * GLB and keep the call site.
+   * A splash where the shark breaks or re-enters the surface: two flat rings
+   * spreading on the water and a burst of droplets thrown up and falling back.
+   * Sized in metres under a root scaled by k, like everything else.
+   *
+   * Replaces a placeholder whose torus was scaled on the wrong axes (the ring
+   * swelled into a fat pale capsule) and was 2–3 m wide next to a 2 m shark —
+   * Sept 30: "water splashes look malformed". Still a stand-in for Rhonda's
+   * splash model: swap the primitives for the GLB and keep the call site.
    */
-  spawnSplashRing: function (x, y, z) {
+  spawnSplash: function (x, y, z, k = 1) {
     const group = document.createElement('a-entity');
     group.setAttribute('position', `${x} ${y + 0.02} ${z}`);
+    group.setAttribute('scale', `${k} ${k} ${k}`);
 
-    const disc = document.createElement('a-cylinder');
-    disc.setAttribute('radius', 0.05);
-    disc.setAttribute('height', 0.04);
-    disc.setAttribute('material', 'color: #7ec8e3; opacity: 0.65; transparent: true');
-    group.appendChild(disc);
+    [0, 140].forEach((delay, i) => {
+      const ring = document.createElement('a-ring');
+      ring.setAttribute('radius-inner', 0.16);
+      ring.setAttribute('radius-outer', 0.22);
+      ring.setAttribute('rotation', '-90 0 0');     // flat on the water
+      ring.setAttribute('material', 'color: #e6f7ff; opacity: 0.85; transparent: true; side: double; depthWrite: false; shader: flat');
+      // a-ring lies in its local XY plane, so grow X and Y, never Z.
+      ring.setAttribute('animation__grow', {
+        property: 'scale', from: '0.3 0.3 1', to: `${i ? 4 : 5.5} ${i ? 4 : 5.5} 1`,
+        dur: 900, delay, easing: 'easeOutQuad'
+      });
+      ring.setAttribute('animation__fade', {
+        property: 'material.opacity', from: 0.85, to: 0, dur: 900, delay, easing: 'easeInQuad'
+      });
+      group.appendChild(ring);
+    });
 
-    const ring = document.createElement('a-torus');
-    ring.setAttribute('radius', 0.08);
-    ring.setAttribute('radius-tubular', 0.02);
-    ring.setAttribute('rotation', '90 0 0');
-    ring.setAttribute('material', 'color: #b8e8f8; opacity: 0.7; transparent: true');
-    group.appendChild(ring);
+    for (let i = 0; i < 14; i++) {
+      const drop = document.createElement('a-sphere');
+      // Big enough to read at the 8 m+ a jump happens at.
+      drop.setAttribute('radius', 0.07 + Math.random() * 0.05);
+      drop.setAttribute('segments-width', 6);
+      drop.setAttribute('segments-height', 4);
+      drop.setAttribute('material', 'color: #f2fbff; opacity: 0.9; transparent: true; shader: flat');
+      const a = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
+      const out = 0.7 + Math.random() * 0.8;
+      drop.setAttribute('splash-drop', { vx: Math.cos(a) * out, vz: Math.sin(a) * out, vy: 2.2 + Math.random() * 1.2 });
+      group.appendChild(drop);
+    }
 
     this.el.appendChild(group);
-    disc.setAttribute('animation__grow', {
-      property: 'scale', from: '1 1 1', to: '28 1 28', dur: 1000, easing: 'easeOutQuad'
-    });
-    ring.setAttribute('animation__grow', {
-      property: 'scale', from: '1 1 1', to: '22 1 22', dur: 1100, easing: 'easeOutQuad'
-    });
-    group.setAttribute('animation__fade', {
-      property: 'scale', to: '0.01 0.01 0.01', dur: 400, delay: 900
-    });
     setTimeout(() => {
       if (group.parentNode) group.parentNode.removeChild(group);
-    }, 1400);
+    }, 1300);
   },
 
   /**
@@ -701,7 +791,7 @@ AFRAME.registerComponent('location-experiences', {
    * now puts the apex on the tap, the water line at `waterY`, and scales the
    * path to JUMP_APEX_HEIGHT_M high and JUMP_RUN_M long.
    */
-  playJump: function (point, waterY) {
+  playJump: function (point, waterY, k = 1) {
     if (this.jumpBusy) return;
     this.jumpBusy = true;
 
@@ -715,12 +805,16 @@ AFRAME.registerComponent('location-experiences', {
     root.setAttribute('data-drop-root', 'jump');
     root.setAttribute('position', `${point.x} ${waterY || 0} ${point.z}`);
     root.setAttribute('rotation', `0 ${yaw} 0`);
+    root.setAttribute('scale', `${k} ${k} ${k}`);
 
     const ent = document.createElement('a-entity');
     ent.setAttribute('gltf-model', '#diving-shark');
     this.sizeTo(ent, `maxDim: ${JUMP_SHARK_MAX_DIM_M}; ground: false`);
     ent.setAttribute('animation-mixer', 'loop: once; clampWhenFinished: true');
-    ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M, runM: JUMP_RUN_M });
+    // Splash as the body breaks the surface and as it drops back in — at the
+    // default 0.5 m the "exit" splash fired near the top of a 0.7 m hop, well
+    // after the shark had left the water ("doesn't match the animation").
+    ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M, runM: JUMP_RUN_M, splashAboveM: 0.15 });
     // A shadow belongs on the water, not on the pavement plane metres above it.
     if (!(waterY < 0)) ent.setAttribute('shadow', 'cast: true');
     root.appendChild(ent);
@@ -728,7 +822,7 @@ AFRAME.registerComponent('location-experiences', {
 
     const splashAt = (evt) => {
       const p = evt.detail && evt.detail.position;
-      if (p) this.spawnSplashRing(p.x, p.y, p.z);
+      if (p) this.spawnSplash(p.x, p.y, p.z, k);
     };
     ent.addEventListener('shark-breach-exit', splashAt);
     ent.addEventListener('shark-breach-entry', splashAt);
@@ -762,7 +856,7 @@ AFRAME.registerComponent('location-experiences', {
    * the visitor, and a jumping shark over the tap. A second tap restarts it
    * around wherever they're standing now.
    */
-  dropParty: function (point) {
+  dropParty: function (point, k = 1) {
     document.querySelectorAll('[data-drop-root="party"]').forEach((el) => el.remove());
     clearTimeout(this.partyTimer);
 
@@ -774,11 +868,14 @@ AFRAME.registerComponent('location-experiences', {
     const circleRoot = document.createElement('a-entity');
     circleRoot.setAttribute('data-drop-root', 'party');
     circleRoot.setAttribute('position', `${me.x} 0 ${me.z}`);
+    circleRoot.setAttribute('scale', `${k} ${k} ${k}`);
 
     // Maria and Jimmy are the wayfinding swimmers the page already loaded.
     const sharks = [
       { id: 'maria', model: '#maria-swimmer', phase: 0, lane: 0 },
-      { id: 'stella', model: '#circle-stella', phase: 120, lane: -1.2 },
+      // Stella's GLB faces −Z, the others +Z — without the 180° she swam the
+      // ring tail-first (Sept 30: "one of the party sharks is swimming backwards").
+      { id: 'stella', model: '#circle-stella', phase: 120, lane: -1.2, yaw: 180 },
       { id: 'jimmy', model: '#jimmy-swimmer', phase: 240, lane: 1.2 }
     ];
     sharks.forEach((s) => {
@@ -796,7 +893,8 @@ AFRAME.registerComponent('location-experiences', {
         radius: PARTY_CIRCLE_RADIUS_M + s.lane,
         period: PARTY_CIRCLE_PERIOD_MS,
         phaseDeg: s.phase,
-        height: 1.6 + s.lane * 0.2
+        height: 1.6 + s.lane * 0.2,
+        yawOffset: s.yaw || 0
       });
       ent.setAttribute('data-placement-key', `party/circle-${s.id}`);
       circleRoot.appendChild(ent);
@@ -804,7 +902,7 @@ AFRAME.registerComponent('location-experiences', {
     this.el.appendChild(circleRoot);
 
     // Dancers at the tap, facing the visitor.
-    const danceRoot = this.makeDropRoot('party', point);
+    const danceRoot = this.makeDropRoot('party', point, k);
     [{ id: 'sharkie', model: '#photo-sharkie', offset: -1.2 },
       { id: 'sammy', model: '#photo-sammy', offset: 1.2 }].forEach((d) => {
       const ent = document.createElement('a-entity');
@@ -826,7 +924,7 @@ AFRAME.registerComponent('location-experiences', {
     // The jump peaks just behind the dancers so it doesn't clip through them.
     const fwd = window.MathUtils ? window.MathUtils.cameraForward(cam) : new THREE.Vector3(0, 0, -1);
     this.jumpBusy = false;
-    setTimeout(() => this.playJump(point.clone().addScaledVector(fwd, 3), 0), 1200);
+    setTimeout(() => this.playJump(point.clone().addScaledVector(fwd, 3 * k), 0, k), 1200);
 
     this.flashHint('Party! Look around — the sharks are circling you');
     this.partyTimer = setTimeout(() => {

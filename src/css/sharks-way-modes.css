@@ -325,3 +325,6 @@ body.sw-photo-active #toast {
 #photo-mode-bar {
   z-index: 1200;
 }
+
+/* model-viewer's built-in loading bar lingers as a grey line over the mascot on a model swap */
+model-viewer::part(default-progress-bar) { display: none; }

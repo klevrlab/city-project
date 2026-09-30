@@ -324,3 +324,5 @@
             font-size: 16px;
             color: #00A9E0;
         }
+/* model-viewer's built-in loading bar lingers as a grey line over the mascot on a model swap */
+model-viewer::part(default-progress-bar) { display: none; }

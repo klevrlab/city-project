@@ -64,6 +64,7 @@
         <div class="spinner"></div>
         <h2>Selfie AR</h2>
         <p id="loading-msg">Loading...</p>
+        <button id="selfie-retry" type="button" onclick="location.reload()">Try again</button>
     </div>
 
     <!-- Top bar -->
@@ -163,6 +164,10 @@
         var viewer = document.getElementById('shark-viewer');
         var hint = document.getElementById('selfie-hint');
         var loadingMsg = document.getElementById('loading-msg');
+        function showError(msg) {
+            loadingMsg.textContent = msg;
+            document.getElementById('selfie-loading').classList.add('error');
+        }
 
         // Mascot box height as a fraction of the screen, and how far it stands
         // out from the right shoulder (screen px, before mirroring).
@@ -197,16 +202,16 @@
             setTimeout(initPose, 500);
         }).catch(function (e) {
             fieldLog('error', 'front camera failed: ' + (e && e.name) + ': ' + (e && e.message));
-            loadingMsg.textContent = e && e.name === 'NotAllowedError'
-                ? 'Camera blocked — allow camera access for this site and reload.'
-                : 'Camera error: ' + (e && e.message);
+            showError(e && e.name === 'NotAllowedError'
+                ? 'Camera blocked — allow camera access for this site, then try again.'
+                : 'Camera error: ' + (e && e.message));
         });
 
         // ─── MEDIAPIPE POSE ───
         function initPose() {
             if (typeof Pose === 'undefined' || typeof Camera === 'undefined') {
                 fieldLog('error', 'MediaPipe Pose/Camera not loaded');
-                loadingMsg.textContent = 'Could not load the pose tracker — check your connection and reload.';
+                showError('Could not load the pose tracker — check your connection and try again.');
                 return;
             }
             loadingMsg.textContent = 'Loading pose model...';
@@ -240,9 +245,10 @@
             });
             camera.start().then(function () {
                 document.getElementById('selfie-loading').classList.add('hidden');
+                document.body.classList.add('selfie-ready');
             }).catch(function (e) {
                 fieldLog('error', 'pose camera failed to start: ' + (e && e.name) + ': ' + (e && e.message));
-                loadingMsg.textContent = 'Camera error: ' + (e && e.message);
+                showError('Camera error: ' + (e && e.message));
             });
         }
 

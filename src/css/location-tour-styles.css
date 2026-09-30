@@ -892,3 +892,78 @@ body {
                 opacity: 0;
             }
         }
+
+/* ── Phone pass (Sept 30) ──
+   Checkpoints and Next Stop were two fixed-width cards that overlapped by a
+   couple of px at different heights; now each takes half the width on one
+   line. The Expand button moves to the map's top-right so the OpenStreetMap
+   attribution (a licence requirement) isn't underneath it. */
+@media (max-width: 480px) {
+    #progress-tracker,
+    #route-info {
+        position: fixed;
+        top: 64px;
+        box-sizing: border-box;
+        width: calc(50% - 15px);
+        max-width: none;
+        min-height: 112px;
+    }
+
+    #progress-tracker {
+        left: 10px;
+        right: auto;
+        padding: 12px 14px;
+    }
+
+    #route-info {
+        right: 10px;
+        left: auto;
+        padding: 12px 14px;
+    }
+
+    #distance {
+        font-size: 26px;
+    }
+
+    #map-container {
+        width: 150px;
+        height: 150px;
+        min-width: 150px;
+        bottom: max(20px, env(safe-area-inset-bottom));
+    }
+
+    /* Icon only: the label made it wider than half the mini-map and it
+       covered the compass. The label is still read out (aria-label). */
+    #toggle-map {
+        top: 8px;
+        right: 8px;
+        bottom: auto;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    #toggle-map #toggle-text {
+        display: none;
+    }
+
+    #toggle-map .icon {
+        margin: 0;
+        width: 18px;
+        height: 18px;
+    }
+
+    #map-container.expanded #toggle-map {
+        width: auto;
+        padding: 8px 12px;
+    }
+
+    #map-container.expanded #toggle-map #toggle-text {
+        display: inline;
+    }
+
+    #map-container.expanded #toggle-map .icon {
+        margin-right: 6px;
+    }
+}

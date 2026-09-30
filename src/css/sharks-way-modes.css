@@ -38,6 +38,13 @@ button.sw-mode-btn.active {
   color: #00A9E0;
 }
 
+/* #nav-menu .nav-link (an id rule) otherwise hides which mode you're in. */
+#nav-menu .sw-mode-btn.active {
+  color: #00A9E0;
+  background: rgba(0, 169, 224, 0.28);
+  border-color: rgba(0, 169, 224, 0.6);
+}
+
 #photo-mode-bar,
 #drop-bar {
   position: fixed;
@@ -69,6 +76,17 @@ button.sw-mode-btn.active {
 
 #drop-bar .sw-chip {
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Still swipeable when there are more drops than fit; just no grey scrollbar. */
+#drop-bar {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+#drop-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .sw-chip {
@@ -77,11 +95,19 @@ button.sw-mode-btn.active {
   background: rgba(0, 169, 224, 0.15);
   color: #fff;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 14px;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  min-height: 40px;
   border-radius: 999px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.sw-chip:active {
+  transform: scale(0.96);
 }
 
 .sw-chip.active {
@@ -112,20 +138,21 @@ button.sw-mode-btn.active {
   white-space: nowrap;
 }
 
-/* The two-row bar reaches ~115px up; lift the hints above it. */
+/* The two-row bar reaches ~130px up; lift the hints above it. */
 body.sw-photo-active #tap-instruction {
-  bottom: 132px;
+  bottom: 144px;
 }
 
 body.sw-photo-active #toast {
-  bottom: 212px;
+  bottom: 224px;
 }
 
 .sw-chip-snap {
   background: rgba(255, 255, 255, 0.92);
   color: #00161a;
   border-color: rgba(255, 255, 255, 0.95);
-  min-width: 64px;
+  min-width: 72px;
+  font-weight: 700;
 }
 
 #reset-btn {
@@ -136,7 +163,9 @@ body.sw-photo-active #toast {
   background: rgba(40, 200, 120, 0.25);
   border: 1px solid rgba(40, 200, 120, 0.45);
   color: white;
-  padding: 6px 12px;
+  box-sizing: border-box;
+  padding: 8px 14px;
+  min-height: 36px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -146,6 +175,10 @@ body.sw-photo-active #toast {
 }
 
 #toast {
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  text-align: center;
   position: fixed;
   left: 50%;
   bottom: 196px;
@@ -216,8 +249,9 @@ body.sw-photo-active #toast {
 /* Bottom, not top: at the top it covered the visitor's face. Only shown while
    no shoulders are detected — it's the fix for exactly that. */
 #sw-selfie-hint {
+  box-sizing: border-box;
   position: fixed;
-  bottom: 132px;
+  bottom: 144px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 970;
@@ -304,6 +338,8 @@ body.sw-photo-active #toast {
 
 .sw-preview-actions button {
   flex: 1;
+  box-sizing: border-box;
+  min-height: 44px;
   appearance: none;
   border: 1px solid rgba(0, 169, 224, 0.4);
   background: rgba(0, 169, 224, 0.2);

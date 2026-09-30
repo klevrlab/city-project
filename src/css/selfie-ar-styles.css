@@ -316,8 +316,42 @@
         }
 
         #selfie-loading p {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            line-height: 1.45;
+            color: rgba(255, 255, 255, 0.7);
+            text-align: center;
+            max-width: 300px;
+            padding: 0 24px;
+            box-sizing: content-box;
+        }
+
+        /* A dead end (camera blocked, tracker failed): no spinner, a way out. */
+        #selfie-loading.error .spinner {
+            display: none;
+        }
+
+        #selfie-retry {
+            display: none;
+            appearance: none;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #006D75, #00A9E0);
+            color: #fff;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 12px 28px;
+            min-height: 48px;
+        }
+
+        #selfie-loading.error #selfie-retry {
+            display: block;
+        }
+
+        /* Shutter and "step back" hint mean nothing until the camera is up. */
+        body:not(.selfie-ready) #selfie-controls,
+        body:not(.selfie-ready) #selfie-hint {
+            visibility: hidden;
         }
 
         #selfie-loading h2 {

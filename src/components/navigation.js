@@ -8,8 +8,14 @@ export function initNavigation() {
     const navHTML = `
       <div id="nav-overlay"></div>
       <div id="nav-menu">
-          <button class="close-btn" id="close-menu">&times;</button>
+          <button class="close-btn" id="close-menu" aria-label="Close menu">&times;</button>
           <h2>Navigation</h2>
+          <a href="./index.html" class="nav-link">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path d="M3 10.5L12 3l9 7.5V21h-6v-6H9v6H3z" />
+              </svg>
+              Home
+          </a>
           <a href="./shark-ar-8thwall.html" class="nav-link">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -62,7 +68,7 @@ export function initNavigation() {
   const topbar = document.getElementById('topbar');
   if (topbar && !document.getElementById('hamburger-btn')) {
     const hamburgerHTML = `
-      <button id="hamburger-btn">
+      <button id="hamburger-btn" aria-label="Menu" aria-controls="nav-menu" aria-expanded="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
               <line x1="3" y1="6" x2="21" y2="6" />
               <line x1="3" y1="12" x2="21" y2="12" />
@@ -72,6 +78,17 @@ export function initNavigation() {
     `;
     topbar.insertAdjacentHTML('beforeend', hamburgerHTML);
   }
+
+  // Highlight the page you're on (selfie links differ only by ?character).
+  const here = location.pathname.split('/').pop() || 'index.html';
+  const hereCharacter = new URLSearchParams(location.search).get('character') || '';
+  document.querySelectorAll('#nav-menu a.nav-link').forEach((a) => {
+    const url = new URL(a.getAttribute('href'), location.href);
+    const page = url.pathname.split('/').pop() || 'index.html';
+    if (page === here && (url.searchParams.get('character') || '') === hereCharacter) {
+      a.setAttribute('aria-current', 'page');
+    }
+  });
 
   const navMenu = document.getElementById('nav-menu');
   const navOverlay = document.getElementById('nav-overlay');
@@ -86,6 +103,7 @@ export function initNavigation() {
   function openMenu() {
     navMenu.classList.add('open');
     navOverlay.classList.add('visible');
+    hamburgerBtn.setAttribute('aria-expanded', 'true');
     if (typeof window.playSound === 'function') {
       window.playSound('tap');
     }
@@ -94,6 +112,7 @@ export function initNavigation() {
   function closeMenu() {
     navMenu.classList.remove('open');
     navOverlay.classList.remove('visible');
+    hamburgerBtn.setAttribute('aria-expanded', 'false');
     if (typeof window.playSound === 'function') {
       window.playSound('tap');
     }

@@ -124,3 +124,36 @@
     opacity: 1;
     pointer-events: auto;
 }
+
+/* ── Phone pass (Sept 30) ──
+   The menu is above every page's own overlays (status pills sit at 1100,
+   hints at 2000 — they used to show through the open menu), sized in
+   border-box so full-width buttons don't run off the right edge, and uses
+   dvh so the last link isn't under Safari's toolbar. */
+#nav-overlay { z-index: 2400; }
+#nav-menu {
+    z-index: 2500;
+    box-sizing: border-box;
+    width: min(300px, 85vw);
+    height: 100vh;
+    height: 100dvh;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+}
+#nav-menu *,
+#nav-menu *::before,
+#nav-menu *::after { box-sizing: border-box; }
+#nav-menu .nav-link { min-height: 48px; }
+#nav-menu .nav-link[aria-current="page"] {
+    background: rgba(0, 169, 224, 0.28);
+    border-color: rgba(0, 169, 224, 0.6);
+}
+/* 36px drawn, 44px to the finger (Apple's minimum touch target). */
+#hamburger-btn,
+#nav-menu .close-btn { width: 40px; height: 40px; }
+#hamburger-btn::after,
+#nav-menu .close-btn::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+}

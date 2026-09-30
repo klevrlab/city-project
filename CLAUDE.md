@@ -172,10 +172,11 @@ frames; this is the same idea in code, which keeps radius, speed and phase tunab
   Never put this model under `shark-arc-jump` — the two paths stack and the shark leaves frame
   (the Sept 28 "I see the shadow but not the shark" bug). The water is the floor the visitor taps
   (`RIVER_WATER_Y_M` = 0; `&waterY=-3` only for experiments).
-  **Sizing is deliberately conservative** (every field test said "too high"): the clip turns the
-  shark near-vertical at the top, so its *length* sets how high it reaches — 2 m long
-  (`JUMP_SHARK_MAX_DIM_M`), body centre peaking 0.7 m up (`JUMP_APEX_HEIGHT_M`), ~10 m run
-  (`JUMP_RUN_M`, scaled separately from height). Measured: highest point 1.35 m, below eye level.
+  **Sizing:** Sept 28–29 said "too high" (the raw clip climbed 12.6 m); the 0.7 m cut that followed
+  was "could honestly be higher" on Sept 30. The clip turns the shark near-vertical at the top, so
+  its *length* adds to the apex — 2.5 m long (`JUMP_SHARK_MAX_DIM_M`), body centre peaking 1.6 m up
+  (`JUMP_APEX_HEIGHT_M`), ~10 m run (`JUMP_RUN_M`, scaled separately from height). Measured: nose
+  2.36 m, tail 1.04 m clear of the water at the top, mid-frame at 8 m with the phone level.
   **Frustum culling is off for this mesh** — three culls rigged meshes by bind-pose bounds, and
   this clip carries the body far from them, so the shark vanished mid-breach while the splash drew.
 
@@ -314,6 +315,21 @@ Photo Mode mascots, drop distances, the jump and the party. The field log prints
 units so a scaled parent isn't undone, and grounds to the entity's own floor (local y = 0).
 Wayfinding swim-throughs and the dropped Jimmy are not rescaled (tuned as they are).
 
+The scale is taken **once per session** (median camera height over the first ~10 s of tracking,
+or the first drop if sooner) and kept — the scale doesn't change after tracking starts, but the
+height does.
+
+**The floor drifts.** 8th Wall's floor is y = 0 for the whole session and its height estimate
+wanders as you walk: the Sept 30 corridor log went from camera 1.84 units up at the river to 0.35
+at SAP and 0.08 in Little Italy — y = 0 ended up a metre above the pavement, so the party was "in
+the sky" and taps near your feet landed a step out (then got pushed to the minimum distance).
+`MathUtils.trackGround` (started by `location-experiences`) re-bases the floor to 1.45 m × k
+below the camera when the camera spends ~3 s less than 0.5 m above the current floor, and moves
+`#ground` there — taps, shadows and every drop follow. (More than 2.2 m above it re-takes the
+scale instead: that's a page opened with the phone held low, not a sunken floor.) **Never hard-code y = 0 for a
+drop**: use the tap point's y or `MathUtils.floorY()`. The log's stats line carries
+`cam= floor= k=`, and each re-base is a `[ground]` line.
+
 ## No native dialogs on the AR pages
 
 Never `window.prompt` / `confirm` / `alert` on the 8th Wall page: on iPhone a native dialog stalls
@@ -375,7 +391,11 @@ jump shark's `jaw` bone (dive-clip `headBone`): it leads; the `spine` bone is ne
 fired ~0.5 s / 0.9 s late. Bone names lose their dots on load (`spine.007` → `spine007`).
 
 **Drop distances:** taps are pushed out to a minimum distance along the tapped line
-(`MIN_DROP_DISTANCE_M`: tower 12 m, river 8 m, Athena / party 3 m) and pulled in to 25 m.
+(`MIN_DROP_DISTANCE_M`: river 8 m, tower 4 m, Athena / party 3 m) and pulled in to 25 m. The
+tower was 12 m until Sept 30 — it overrode ordinary taps ("visibly offset forward").
+
+**Tower base on the tap:** its file origin is ~1 m from its base (the lean), so it's sized with
+`model-normalize="…; centerBase: true"` — the centre of the bottom 3% of vertices goes on the tap.
 
 **GPU memory:** `src/components/gltf-dispose.js` patches A-Frame's `gltf-model` to free geometry,
 textures and skeletons on remove. Without it every swim-through and drop leaked, and long field

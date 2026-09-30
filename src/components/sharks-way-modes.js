@@ -197,7 +197,7 @@ function spawnPhotoMascot(point, facingYaw, k = unitsPerMetre()) {
   } else {
     ent.setAttribute('gltf-model', `#${c.asset}`);
   }
-  ent.setAttribute('position', `${point.x} 0.02 ${point.z}`);
+  ent.setAttribute('position', `${point.x} ${(point.y || 0) + 0.02} ${point.z}`);
   ent.setAttribute('rotation', `0 ${facingYaw} 0`);
   // Sharkie is 1.95 m in its GLB, Sammy 2.96 m and Athena 206 m, and the
   // mascots float above their origin — normalize so photos frame consistently.
@@ -216,11 +216,13 @@ function placePhotoMascot(tapPoint, { quiet = false } = {}) {
   if (!root || !tapPoint) return;
 
   clearPhotoMascot();
-  state.lastTapPoint = new THREE.Vector3(tapPoint.x, 0, tapPoint.z);
+  // The tap plane follows the real floor as tracking drifts (MathUtils.trackGround).
+  const floor = tapPoint.y || 0;
+  state.lastTapPoint = new THREE.Vector3(tapPoint.x, floor, tapPoint.z);
   const c = currentCharacter();
 
   // Keep the character at photo distance, along the line the visitor tapped.
-  const point = new THREE.Vector3(tapPoint.x, 0, tapPoint.z);
+  const point = new THREE.Vector3(tapPoint.x, floor, tapPoint.z);
   let facingYaw = 0;
   const cam = document.getElementById('camera');
   if (cam) {
@@ -236,10 +238,10 @@ function placePhotoMascot(tapPoint, { quiet = false } = {}) {
     const k = unitsPerMetre();
     const tapped = d;
     d = Math.min(Math.max(d, c.minM * k), c.maxM * k);
-    point.set(camPos.x + toPoint.x * d, 0, camPos.z + toPoint.z * d);
+    point.set(camPos.x + toPoint.x * d, floor, camPos.z + toPoint.z * d);
     fieldLog('photo', `place ${c.label} at ${(d / k).toFixed(1)}m` +
       (Math.abs(tapped - d) > 0.05 ? ` (tap was ${(tapped / k).toFixed(1)}m)` : '') +
-      ` · scale ${k.toFixed(2)} units/m (camera ${camPos.y.toFixed(2)} units up)`);
+      ` · scale ${k.toFixed(2)} units/m (camera ${(camPos.y - floor).toFixed(2)} units above the floor)`);
 
     // Models face +Z: aim +Z from the mascot back at the camera. The old math
     // aimed it along the tap ray, i.e. facing away from the photographer.

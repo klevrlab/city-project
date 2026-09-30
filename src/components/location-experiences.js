@@ -31,6 +31,9 @@ const fieldLog = (category, message) => {
   if (window.SharksWayLog) window.SharksWayLog.add(category, message);
 };
 
+/** World y of the floor under the visitor now — y = 0 until tracking drifts. */
+const floorY = () => (window.MathUtils && window.MathUtils.floorY ? window.MathUtils.floorY() : 0);
+
 /**
  * Real-world sizes, in metres. Models are normalized to these on load (see
  * model-normalize.js) — none of the source GLBs share a unit convention.
@@ -40,16 +43,16 @@ const MASCOT_HEIGHT_M = 1.9;   // Sharkie / Sammy — person-scale. Keep in step
 const SHARK_MAX_DIM_M = 3.0;   // sharks are long and low, so pin the longest axis
 const TOWER_HEIGHT_M = 8;      // the June 10 redline's 8 m / 26 ft replica
 /**
- * The jump, sized conservatively: every field test reported it too high to see
- * (Sept 28, Sept 29). The clip turns the shark almost vertical at the top of
- * the breach, so its *length* sets how high it reaches, not the apex: at 3 m
- * long the nose reached ~1.9–2.0 m whatever the apex. At 2 m long — close to
- * the ~1.5 m wayfinding swimmers — with the body's centre peaking 0.7 m up,
- * the desktop sim measures the nose at ~1.6 m (eye level for a phone held
- * level) and the tail just clearing the floor.
+ * The jump. Sept 28–29 it was "too high to see" — the baked clip climbed
+ * 12.6 m. Cut to a 2 m shark peaking 0.7 m up (nose ~1.35 m), Sept 30 on site
+ * said it "could honestly be higher". The clip turns the shark almost vertical
+ * at the top, so its *length* adds to the apex: 2.5 m long with the body's
+ * centre at 1.6 m clears the water completely, tail and all, and puts the nose
+ * ~2.4 m up (desktop sim) — a head above a person, still in the middle of a
+ * portrait frame at the 8 m minimum drop.
  */
-const JUMP_SHARK_MAX_DIM_M = 2.0;
-const JUMP_APEX_HEIGHT_M = 0.7;
+const JUMP_SHARK_MAX_DIM_M = 2.5;
+const JUMP_APEX_HEIGHT_M = 1.6;
 const JUMP_RUN_M = 10;          // swim in, breach, swim off: ~10 m across the view
 
 /**
@@ -98,12 +101,14 @@ const STATUE_MAX_TEXTURE_PX = 1024;
 const MAX_DROP_DISTANCE_M = 25;
 
 /**
- * …and a tap this close is pushed out along the same line. Taps near the
- * bottom of the screen, or with the phone tilted down, hit the ground right at
- * the visitor's feet: the Sept 29 log has the 8 m tower dropped 0.4–1.5 m away,
- * which puts the visitor inside it ("Leaning tower placed in air").
+ * …and a tap this close is pushed out along the same line, so the visitor is
+ * never standing inside what they dropped. Only a floor: the Sept 30 corridor
+ * run had every tower land at exactly 12 m, "visibly offset forward from my
+ * tapping point" — the old 12 m minimum overrode ordinary taps (and drifted
+ * tracking made taps land short, see MathUtils.trackGround). 4 m keeps the
+ * tower's base clear of the visitor; they can step back to see the top.
  */
-const MIN_DROP_DISTANCE_M = { athena: 3, tower: 12, river: 8, party: 3 };
+const MIN_DROP_DISTANCE_M = { athena: 3, tower: 4, river: 8, party: 3 };
 
 /**
  * Where each drop is offered. Coordinates from Rhonda's Sept 28 notes; the
@@ -214,6 +219,11 @@ AFRAME.registerComponent('location-experiences', {
   },
 
   start: function () {
+    // Keeps #ground under the visitor's feet as 8th Wall's height drifts
+    // (MathUtils.trackGround) — every drop below lands at floorY(), not y = 0.
+    if (window.MathUtils && window.MathUtils.trackGround) {
+      window.MathUtils.trackGround(document.getElementById('camera'), document.getElementById('ground'));
+    }
     this.ensureStatusUi();
     this.ensureDropBar();
 
@@ -454,12 +464,12 @@ AFRAME.registerComponent('location-experiences', {
 
   /**
    * Where the tap's line of sight meets the water, not the pavement. The water
-   * is below the ground plane, so the tap ray crosses y=0 well short of it.
+   * is below the ground plane, so the tap ray crosses the floor well short of it.
    */
   onWater: function (groundPoint) {
     const cam = document.getElementById('camera');
-    const y = this.riverWaterY;
-    if (!cam || !(y < 0)) return groundPoint;
+    if (!cam || !(this.riverWaterY < 0)) return groundPoint;
+    const y = groundPoint.y + this.riverWaterY;
     const c = cam.object3D.getWorldPosition(new THREE.Vector3());
     const d = new THREE.Vector3().subVectors(groundPoint, c);
     if (d.y >= -1e-3) return groundPoint;
@@ -468,11 +478,12 @@ AFRAME.registerComponent('location-experiences', {
 
   /**
    * Keep a drop between its minimum distance and MAX_DROP_DISTANCE_M from the
-   * visitor, along the line they tapped. Returns a ground-level point.
+   * visitor, along the line they tapped. Returns a point on the floor.
    */
   clampDrop: function (point, id, k = 1) {
     const cam = document.getElementById('camera');
-    if (!cam) return new THREE.Vector3(point.x, 0, point.z);
+    const floor = floorY();
+    if (!cam) return new THREE.Vector3(point.x, floor, point.z);
     const origin = cam.object3D.getWorldPosition(new THREE.Vector3());
     const flat = new THREE.Vector3(point.x - origin.x, 0, point.z - origin.z);
     const d = flat.length();
@@ -486,7 +497,7 @@ AFRAME.registerComponent('location-experiences', {
     } else {
       flat.divideScalar(d);
     }
-    return new THREE.Vector3(origin.x + flat.x * target, 0, origin.z + flat.z * target);
+    return new THREE.Vector3(origin.x + flat.x * target, floor, origin.z + flat.z * target);
   },
 
   /** Drop at a point straight ahead — for the debug panel and console. */
@@ -497,7 +508,7 @@ AFRAME.registerComponent('location-experiences', {
     const fwd = window.MathUtils.cameraForward(cam);
     const k = this.unitsPerMetre();
     const d = (distanceM || (id === 'tower' ? 14 : id === 'river' ? 10 : 5)) * k;
-    this.drop(id, new THREE.Vector3(origin.x + fwd.x * d, 0, origin.z + fwd.z * d), k);
+    this.drop(id, new THREE.Vector3(origin.x + fwd.x * d, floorY(), origin.z + fwd.z * d), k);
     return true;
   },
 
@@ -506,7 +517,7 @@ AFRAME.registerComponent('location-experiences', {
     const from = cam ? cam.object3D.getWorldPosition(new THREE.Vector3()) : null;
     fieldLog('drop', `${id}` + (from
       ? ` ${(Math.hypot(point.x - from.x, point.z - from.z) / k).toFixed(1)}m from camera` +
-        ` · scale ${k.toFixed(2)} units/m (camera ${from.y.toFixed(2)} units up)`
+        ` · scale ${k.toFixed(2)} units/m (camera ${(from.y - point.y).toFixed(2)} units above the floor at ${point.y.toFixed(2)})`
       : ''));
     // Normally prefetched on arrival; this covers demo unlocks and debug drops.
     prefetchModels(DROP_MODELS[id]);
@@ -542,7 +553,7 @@ AFRAME.registerComponent('location-experiences', {
   makeDropRoot: function (id, point, k = 1) {
     const root = document.createElement('a-entity');
     root.setAttribute('data-drop-root', id);
-    root.setAttribute('position', `${point.x} 0 ${point.z}`);
+    root.setAttribute('position', `${point.x} ${point.y} ${point.z}`);
     // Everything under the root is authored in metres; this makes them metres.
     root.setAttribute('scale', `${k} ${k} ${k}`);
     const cam = document.getElementById('camera');
@@ -631,7 +642,7 @@ AFRAME.registerComponent('location-experiences', {
    * so the buried part doesn't show through the camera image. (Sept 30 test
    * run: "Athena does not have an animation coming out of the ground".)
    */
-  riseFromGround: function (ent, heightM, durMs) {
+  riseFromGround: function (ent, heightM, durMs, floorAt = 0) {
     // A wrapper does the moving, so the model's own position (placement
     // overrides included) is never read or touched. Reading it before the
     // entity is attached returns junk — the first version floated Athena
@@ -640,7 +651,7 @@ AFRAME.registerComponent('location-experiences', {
     lift.setAttribute('position', `0 ${-(heightM * 1.05)} 0`);
     lift.appendChild(ent);
     const scene = this.el.sceneEl;
-    const floor = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];   // keep world y >= 0
+    const floor = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorAt)];   // keep world y >= floor
     const setClip = (planes) => {
       const mesh = ent.getObject3D('mesh');
       if (!mesh) return;
@@ -681,7 +692,7 @@ AFRAME.registerComponent('location-experiences', {
       rotation: { x: 0, y: 0, z: 0 },
       scale: '1 1 1'
     });
-    root.appendChild(this.riseFromGround(ent, STATUE_HEIGHT_M, 1600));
+    root.appendChild(this.riseFromGround(ent, STATUE_HEIGHT_M, 1600, point.y));
     this.el.appendChild(root);
     this.placed.athena = root;
     this.announce(ent, 'athena-point-right', 'Athena', 'Athena placed — tap again to move her');
@@ -697,7 +708,9 @@ AFRAME.registerComponent('location-experiences', {
     tower.setAttribute('gltf-model', '#leaning-tower-model');
     tower.setAttribute('shadow', 'cast: true');
     // Raw GLB is 47.5 m tall.
-    this.sizeTo(tower, `height: ${TOWER_HEIGHT_M}`);
+    // centerBase: the base, not the file origin, goes on the tap (the lean puts
+    // the two ~1 m apart).
+    this.sizeTo(tower, `height: ${TOWER_HEIGHT_M}; centerBase: true`);
     // New key: tuning saved under 'leaning-tower' was an offset from the old
     // GPS pin and would shove a tapped tower away from the tap.
     this.place(tower, 'leaning-tower/drop', {
@@ -721,7 +734,7 @@ AFRAME.registerComponent('location-experiences', {
         });
       }, { once: true });
     }
-    root.appendChild(this.riseFromGround(tower, TOWER_HEIGHT_M, 2600));
+    root.appendChild(this.riseFromGround(tower, TOWER_HEIGHT_M, 2600, point.y));
     this.el.appendChild(root);
     this.placed.tower = root;
     this.announce(tower, 'leaning-tower-model', 'the Leaning Tower', 'Leaning Tower placed — walk around it');
@@ -803,7 +816,7 @@ AFRAME.registerComponent('location-experiences', {
 
     const root = document.createElement('a-entity');
     root.setAttribute('data-drop-root', 'jump');
-    root.setAttribute('position', `${point.x} ${waterY || 0} ${point.z}`);
+    root.setAttribute('position', `${point.x} ${point.y + (waterY || 0)} ${point.z}`);
     root.setAttribute('rotation', `0 ${yaw} 0`);
     root.setAttribute('scale', `${k} ${k} ${k}`);
 
@@ -867,7 +880,7 @@ AFRAME.registerComponent('location-experiences', {
     const me = cam.object3D.getWorldPosition(new THREE.Vector3());
     const circleRoot = document.createElement('a-entity');
     circleRoot.setAttribute('data-drop-root', 'party');
-    circleRoot.setAttribute('position', `${me.x} 0 ${me.z}`);
+    circleRoot.setAttribute('position', `${me.x} ${point.y} ${me.z}`);
     circleRoot.setAttribute('scale', `${k} ${k} ${k}`);
 
     // Maria and Jimmy are the wayfinding swimmers the page already loaded.

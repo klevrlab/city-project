@@ -66,9 +66,12 @@ function describe(el, label) {
   const size = b.getSize(new THREE.Vector3());
   // Scene units aren't metres under 8th Wall's default scale; report both.
   const k = window.MathUtils && window.MathUtils.unitsPerMetre ? window.MathUtils.unitsPerMetre(camEl()) : 1;
+  // Heights from the floor drops land on, which leaves y = 0 when tracking drifts.
+  const f = window.MathUtils && window.MathUtils.floorY ? window.MathUtils.floorY() : 0;
   const m = (v) => (v / k).toFixed(2);
   return `${label}: ≈${(Math.hypot(ctr.x - c.x, ctr.z - c.z) / k).toFixed(1)} m away, ≈${m(size.y)} m tall, ` +
-    `base ${m(b.min.y)} m, top ${m(b.max.y)} m · raw units: ${size.y.toFixed(2)} tall, eye ${c.y.toFixed(2)}, ${k.toFixed(2)} units/m`;
+    `base ${m(b.min.y - f)} m, top ${m(b.max.y - f)} m · raw units: ${size.y.toFixed(2)} tall, ` +
+    `eye ${(c.y - f).toFixed(2)} above floor ${f.toFixed(2)}, ${k.toFixed(2)} units/m`;
 }
 
 function gpuInfo() {
@@ -159,8 +162,8 @@ const STEPS = [
     id: 'tower',
     title: 'Leaning Tower',
     setup: () => pickDrop('tower'),
-    todo: 'Tap the floor near your feet. (Best outdoors — it lands ~12 m out.)',
-    check: 'Tower lands ~12 m away, ~8 m tall, base on the ground — not floating. Take a few steps: it stays put.',
+    todo: 'Tap the floor 5–10 m ahead. (Best outdoors.)',
+    check: 'Tower rises exactly where you tapped (never closer than 4 m), ~8 m tall, base on the ground — not floating. Take a few steps: it stays put.',
     measure: async () => describe(document.querySelector('[data-drop-root="tower"]'), 'tower')
   },
   {
@@ -168,7 +171,7 @@ const STEPS = [
     title: 'River jump',
     setup: () => pickDrop('river'),
     todo: 'Hold the phone level and tap the floor ahead. Tap again for another jump.',
-    check: 'A shark swims in from the left, jumps no higher than your eye level, splashes down and swims off right — visible the whole time.',
+    check: 'A shark swims in from the left, breaches clear of the water with its nose a little above your eye level, splashes down and swims off right — visible the whole time.',
     measure: async () => {
       const root = document.querySelector('[data-drop-root="jump"]');
       return (root ? describe(root.firstElementChild, 'jump shark (mid-run)') : 'no jump running right now') +

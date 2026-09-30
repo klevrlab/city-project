@@ -34,7 +34,13 @@ AFRAME.registerComponent('model-normalize', {
     // Put the model's body (bounding-box centre) over the entity in X/Z. For
     // models whose file origin sits off the body — the shark GLBs are ~1.8 m
     // off at swim scale — so a path or a turn is followed by the body itself.
-    center: { type: 'boolean', default: false }
+    center: { type: 'boolean', default: false },
+    // Put the model's *base* over the entity in X/Z — the centre of whatever
+    // touches the ground. For leaning or off-pivot models, where the body's
+    // centre isn't above the footprint: the Leaning Tower's file origin sits
+    // ~1 m from its base, so a tapped tower stood a metre off the tap point
+    // (Sept 30 corridor run: "visibly offset from tap point").
+    centerBase: { type: 'boolean', default: false }
   },
 
   init: function () {
@@ -83,6 +89,24 @@ AFRAME.registerComponent('model-normalize', {
     return new THREE.Box3().setFromObject(mesh, true);
   },
 
+  /** World-space centre of the vertices in the bottom 3% of the model. */
+  footprintCentre: function (mesh) {
+    const box = this.measure(mesh);   // also poses skeletons / updates matrices
+    const cut = box.min.y + (box.max.y - box.min.y) * 0.03;
+    const foot = new THREE.Box3();
+    const v = new THREE.Vector3();
+    mesh.traverse((o) => {
+      const pos = o.isMesh && o.geometry && o.geometry.attributes.position;
+      if (!pos) return;
+      for (let i = 0; i < pos.count; i++) {
+        o.getVertexPosition(i, v);
+        v.applyMatrix4(o.matrixWorld);
+        if (v.y <= cut) foot.expandByPoint(v);
+      }
+    });
+    return (foot.isEmpty() ? box : foot).getCenter(new THREE.Vector3());
+  },
+
   normalize: function () {
     if (this.applied) return;
     const mesh = this.el.getObject3D('mesh');
@@ -109,6 +133,13 @@ AFRAME.registerComponent('model-normalize', {
 
     if (this.data.center) {
       const c = this.measure(mesh).getCenter(new THREE.Vector3());
+      this.el.object3D.worldToLocal(c);
+      mesh.position.x -= c.x;
+      mesh.position.z -= c.z;
+    }
+
+    if (this.data.centerBase) {
+      const c = this.footprintCentre(mesh);
       this.el.object3D.worldToLocal(c);
       mesh.position.x -= c.x;
       mesh.position.z -= c.z;

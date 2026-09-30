@@ -135,7 +135,9 @@ AFRAME.registerComponent('shark-animator', {
     const cam = document.getElementById('camera');
     const pt = cam.object3D.getWorldPosition(new THREE.Vector3());
     pt.addScaledVector(window.MathUtils.cameraForward(cam), distanceMeters);
-    pt.y = 0;
+    // The floor under the visitor, which drifts away from y = 0 as they walk
+    // (MathUtils.trackGround).
+    pt.y = window.MathUtils.floorY ? window.MathUtils.floorY() : 0;
     return pt;
   },
 
@@ -230,11 +232,12 @@ AFRAME.registerComponent('shark-animator', {
 
     const x = targetPoint.x;
     const z = targetPoint.z;
-    const startY = -0.6;
+    const floor = targetPoint.y || 0;   // the tap plane follows the real floor
+    const startY = floor - 0.6;
     // Same height as the swim-through sharks (experience y 0.28). At 0.95 it
     // hovered above head height on a phone that started low — Sept 30 test
     // run: "shark is floating", base 1.2 units up.
-    const hoverY = 0.35;
+    const hoverY = floor + 0.35;
 
     // Nose pointing the way the visitor faces, swimming forward in place.
     // Side-on read as "facing to the right and not forwards" (Sept 30).
@@ -341,14 +344,14 @@ AFRAME.registerComponent('shark-animator', {
     const baseYaw = Math.atan2(dirToTarget.x, dirToTarget.z) * (180 / Math.PI);
     const facingYaw = baseYaw + (experience.rotationOffsetY || 0);
     const baseY = Number(experience.y || 0.5);
-    const y = baseY + (this.FLOOR_CLEARANCE || 0);
+    const y = (targetPoint.y || 0) + baseY + (this.FLOOR_CLEARANCE || 0);
 
     if (experience.motion === 'riseFromGround') {
       // Jimmy: emerges smoothly from below ground, hovers above the painting long
       // enough for the viewer to walk around it, then sinks back.
-      const startY = -0.6;
+      const startY = (targetPoint.y || 0) - 0.6;
       const hoverY = y + 0.35;
-      const sinkY = -0.4;
+      const sinkY = (targetPoint.y || 0) - 0.4;
       const x = targetPoint.x;
       const z = targetPoint.z;
 
@@ -402,9 +405,9 @@ AFRAME.registerComponent('shark-animator', {
       // enough for a selfie, then sinks back.
       const x = targetPoint.x;
       const z = targetPoint.z - 0.35;
-      const startY = -0.6;
+      const startY = (targetPoint.y || 0) - 0.6;
       const poseY = y;
-      const sinkY = -0.4;
+      const sinkY = (targetPoint.y || 0) - 0.4;
 
       ent.setAttribute('position', `${x} ${startY} ${z}`);
       ent.setAttribute('rotation', `0 ${facingYaw} 0`);

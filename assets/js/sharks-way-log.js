@@ -510,6 +510,12 @@
             ' (need ' + window.SharkVision.threshold() + ')' : ''));
       }
       if (window.SharksWayDrops) s.push('drops=' + window.SharksWayDrops.available().join(','));
+      if (window.MathUtils && window.MathUtils.groundState) {
+        var g = window.MathUtils.groundState();
+        var cam = document.getElementById('camera');
+        var cy = cam && cam.object3D && window.THREE ? cam.object3D.getWorldPosition(new window.THREE.Vector3()).y : NaN;
+        s.push('cam=' + cy.toFixed(2) + ' floor=' + g.floorY.toFixed(2) + ' k=' + (g.k ? g.k.toFixed(2) : '?'));
+      }
     } catch (e) { s.push('stats error ' + describe(e)); }
     add('stats', s.join(' '));
   }, STATS_MS);

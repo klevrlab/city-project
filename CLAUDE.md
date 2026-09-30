@@ -301,6 +301,18 @@ To get a log: `shark-ar-8thwall.html?debug=1` → 🛠 → **LOG** → SHARE LOG
 Files) or DOWNLOAD; **MARK A MOMENT** drops a note into the log when something looks wrong. On other
 pages (or with `?log=1`) a small **LOG** button sits bottom-left with the same actions.
 
+## At-home Test Run (`?test=1`)
+
+`shark-ar-8thwall.html?test=1` — a guided checklist card (`src/components/test-run.js`) over every
+mode that doesn't need the corridor, all on this one page: camera, summon, drop a shark, Athena,
+tower, river jump, party, Photo Mode place + snap, front-camera selfie + snap, Goalie, and an
+automatic freeze/soak run (5 summons + 3 towers, GPU memory before/after). Each step's **Set it
+up** button switches mode / picks the drop itself. ✓ / ✗ (prompts for a note) / Skip are logged
+with measurements taken at that moment — distance, rendered height, base/top vs eye height, fps,
+GPU memory — failures as `★ TEST FAIL` marks. `?test=1` also turns the field log on and unlocks
+every drop without GPS. Progress survives a reload (sessionStorage). Share the log at the end.
+Not covered: painted-shark scanning (needs the paintings).
+
 ## Placement Debug Mode
 
 `shark-ar-8thwall.html?debug=1` loads `src/components/debug-placement.js` — an on-device HUD for
@@ -343,6 +355,11 @@ Scanning pauses while a party is running.
 **Rigged models:** `model-normalize` poses the skeleton before measuring. Without that, three's
 cached skinned bounding box is computed before the first pose and the "normalized" size is
 wrong — Sharkie at "1.9 m" rendered ~7 m tall, half underground.
+
+**Measure vertices, not boxes:** `model-normalize` uses `Box3.setFromObject(mesh, true)` (precise).
+The default takes each part's bounding box rotated into place, which over-reaches for rotated
+parts — the Leaning Tower's thin base plate read ~0.5 m lower than it is, so "grounding" left the
+tower floating half a metre up (always had; found by the Sept 30 test run).
 
 ## Development Notes
 

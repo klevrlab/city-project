@@ -585,12 +585,9 @@ AFRAME.registerComponent('shark-animator', {
     ent.object3D.updateWorldMatrix(true, false);
     mesh.updateMatrixWorld(true);
     mesh.traverse((o) => {
-      if (o.isSkinnedMesh && o.skeleton && typeof o.computeBoundingBox === 'function') {
-        o.skeleton.update();
-        o.computeBoundingBox();
-      }
+      if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
     });
-    const world = new THREE.Box3().setFromObject(mesh);
+    const world = new THREE.Box3().setFromObject(mesh, true);   // posed vertices
     if (world.isEmpty()) return;
     const c = world.getCenter(new THREE.Vector3());
     ent.object3D.worldToLocal(c);

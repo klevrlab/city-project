@@ -64,7 +64,7 @@ AFRAME.registerComponent('model-normalize', {
    * desktop sim: Sharkie "normalized" to 1.9 m actually rendered ~7 m tall and
    * half below the ground, and the result varied with load timing — the
    * mascots that were too big on one visit and "small sometimes" on the next.
-   * Posing the skeleton and recomputing first makes the measurement real.
+   * Posing the skeleton and measuring the vertices makes it real.
    */
   measure: function (mesh) {
     // Parents first, then updateMatrixWorld down the model: SkinnedMesh only
@@ -73,12 +73,14 @@ AFRAME.registerComponent('model-normalize', {
     this.el.object3D.updateWorldMatrix(true, false);
     mesh.updateMatrixWorld(true);
     mesh.traverse((o) => {
-      if (o.isSkinnedMesh && o.skeleton && typeof o.computeBoundingBox === 'function') {
-        o.skeleton.update();
-        o.computeBoundingBox();
-      }
+      if (o.isSkinnedMesh && o.skeleton) o.skeleton.update();
     });
-    return new THREE.Box3().setFromObject(mesh);
+    // precise: measure the vertices where they actually are, not each part's
+    // bounding box rotated into place. The Leaning Tower's parts are rotated
+    // in the file, and the rotated box of its thin base plate reaches ~0.5 m
+    // below the plate — so "grounding" that box left the tower floating half a
+    // metre up (test run, Sept 30; likely the Sept 29 "placed in air" mark).
+    return new THREE.Box3().setFromObject(mesh, true);
   },
 
   normalize: function () {

@@ -182,7 +182,9 @@ AFRAME.registerComponent('location-experiences', {
     this.barEl = null;
 
     const params = new URLSearchParams(window.location.search);
-    this.unlockAll = params.get('demoLocations') === '1' || params.get('demo') === 'locations';
+    // ?test=1 is the at-home test run (test-run.js): every drop, no GPS needed.
+    this.unlockAll = params.get('demoLocations') === '1' || params.get('demo') === 'locations' ||
+      params.get('test') === '1';
     const waterY = parseFloat(params.get('waterY'));
     this.riverWaterY = isFinite(waterY) ? waterY : RIVER_WATER_Y_M;
 

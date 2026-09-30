@@ -39,7 +39,7 @@
     var params = new URLSearchParams(window.location.search);
     if (params.get('log') === '0') flag = '0';
     else if (params.get('log') === '1' || params.get('debug') === '1' ||
-             params.get('debugPlacement') === '1') flag = '1';
+             params.get('debugPlacement') === '1' || params.get('test') === '1') flag = '1';
   } catch (e) { /* old browser — stay off */ }
 
   var enabled = false;

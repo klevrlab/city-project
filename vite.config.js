@@ -49,7 +49,13 @@ export default defineConfig({
       }
     }
   },
+  // `npm run phone` serves this through a Cloudflare quick tunnel
+  // (https://<random>.trycloudflare.com); Vite refuses unknown hostnames.
   server: {
-    open: true
+    open: true,
+    allowedHosts: ['.trycloudflare.com']
+  },
+  preview: {
+    allowedHosts: ['.trycloudflare.com']
   }
 });

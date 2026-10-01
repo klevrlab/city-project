@@ -44,16 +44,14 @@ http-server -p 8080
 http://localhost:8080
 ```
 
-### Option 3: Public Tunnel
+### Option 3: On a phone (HTTPS tunnel)
+Camera and GPS only work over HTTPS. `npm run phone` starts the dev server and a free Cloudflare
+quick tunnel (`brew install cloudflared` once; no account), then prints a QR code and links:
 ```bash
-# Start local server first
-python3 -m http.server 8080
-
-# In another terminal
-npx localtunnel --port 8080
-
-# Use provided URL on any device
+npm run phone            # dev server
+npm run phone -- --dist  # production build
 ```
+The address changes every run. Quick tunnels have no uptime guarantee — for testing only.
 
 ## Production Deployment
 

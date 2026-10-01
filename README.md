@@ -40,16 +40,15 @@ shark-ar-8thwall.html?desktop=1&at=littleitaly     # or at=river | sap | underpa
 ```
 Add `&debug=1` for the placement/debug panel and `&demoLocations=1` to unlock every location drop.
 
-### Mobile Testing
-Access on phone via local IP (same WiFi):
-```
-http://[YOUR_LOCAL_IP]:8080
-```
-
-### Public Tunnel
+### Testing on a Phone
+Camera and GPS need HTTPS, so `http://[LOCAL_IP]:8080` loads but the AR can't start. Use a free
+Cloudflare quick tunnel instead (no account; one-time `brew install cloudflared`):
 ```bash
-npx localtunnel --port 8080
+npm run phone            # dev server — edit, then refresh on the phone
+npm run phone -- --dist  # the production build, as GitHub Pages will serve it
 ```
+It prints a QR code (scan with the phone camera) and links to every page with the field log on.
+The `https://….trycloudflare.com` address is new each run; Ctrl+C stops it.
 
 ## AR Experiences
 

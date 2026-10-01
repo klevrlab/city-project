@@ -89,7 +89,10 @@ city-project/
 - **MobileNet weights are self-hosted** in `assets/models/mobilenet_v2_100_224/` — byte-for-byte the TF Hub `mobilenet_v2_100_224/classification/2` files (TF Hub now serves them via Kaggle redirects; it's kept as the fallback). Load with `inputRange: [0, 1]`: with a `modelUrl` the package otherwise assumes [-1, 1] and every embedding drifts off the enrolled set. Verified identical embeddings (cos 1.0, max diff 0) against the Hub model.
 - **Selfie AR shoulder target:** MediaPipe landmark 12 (right shoulder), offset X+50px / Y-70px.
 - **8th Wall Wayfinding cycle (June 10 redline):** Maria + Jimmy alternating swim-throughs on camera detection of the painted sharks; ground-tap "drops" a stationary looping Jimmy, or — near a location — whatever is picked in the drop bar. Nothing is placed automatically from GPS (Sept 28).
-- **HTTPS required** for camera and GPS (use localtunnel or ngrok for mobile testing).
+- **HTTPS required** for camera and GPS. Phone testing: `npm run phone` (`tools/phone.mjs`) — Vite +
+  a free Cloudflare quick tunnel (`brew install cloudflared`), QR code + links printed; `-- --dist`
+  for the production build. `vite.config.js` allows `.trycloudflare.com` hosts. The script waits
+  for the name on 1.1.1.1 before probing it: asking the Mac too early caches "not found" for minutes.
 
 ## AR Experiences
 

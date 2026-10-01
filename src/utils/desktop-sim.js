@@ -245,7 +245,7 @@ function killXrOverlays() {
     // top-level siblings that blanket the viewport and hold no canvas.
     document.querySelectorAll('body > div').forEach((el) => {
       if (el.id === 'dbg-root' || el.id === 'topbar' || el.id === 'tap-instruction') return;
-      if (el.id === 'location-status') return;
+      if (el.id === 'location-status' || el.id === 'nav-overlay' || el.id === 'nav-menu') return;
       const cs = window.getComputedStyle(el);
       const floating = cs.position === 'fixed' || cs.position === 'absolute';
       const coversPage = floating &&

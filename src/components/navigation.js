@@ -101,6 +101,9 @@ export function initNavigation() {
   }
 
   function openMenu() {
+    // Opening is the class's job; a leftover inline position would keep the
+    // menu off-screen behind a grey overlay.
+    navMenu.style.removeProperty('right');
     navMenu.classList.add('open');
     navOverlay.classList.add('visible');
     hamburgerBtn.setAttribute('aria-expanded', 'true');

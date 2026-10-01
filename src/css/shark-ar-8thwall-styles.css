@@ -5,25 +5,6 @@ body {
             background: transparent;
         }
 
-        #spawn-btn {
-            position: fixed;
-            /* Sits below the topbar so it doesn't collide with the hamburger. */
-            top: 64px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(40, 200, 120, 0.25);
-            border: 1px solid rgba(40, 200, 120, 0.4);
-            color: white;
-            box-sizing: border-box;
-            padding: 8px 12px;
-            min-height: 40px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: inherit;
-        }
-
         #loading {
             position: fixed;
             inset: 0;

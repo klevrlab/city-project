@@ -76,6 +76,8 @@ AFRAME.registerComponent('shark-animator', {
       if (instruction && !this.isRunning) instruction.classList.add('visible');
     });
 
+    // No on-screen button since Oct 1 ("remove the summon shark button");
+    // the test run (?test=1) and the console still summon through this.
     window.manualSharkSpawn = () => {
       if (window.SharksWayMode && !window.SharksWayMode.isWayfinding()) return;
       const pt = this.getForwardTarget(4);
@@ -116,11 +118,13 @@ AFRAME.registerComponent('shark-animator', {
   closeNavIfOpen: function () {
     const navMenu = document.getElementById('nav-menu');
     const navOverlay = document.getElementById('nav-overlay');
-    if (navMenu) {
-      navMenu.style.right = '-100%';
-      navMenu.classList.remove('open');
-    }
+    // Class only. This used to also set an inline `right: -100%`, which beats
+    // `#nav-menu.open { right: 0 }` — after one Summon, the hamburger only
+    // greyed the screen and the menu never slid in again (Oct 1).
+    if (navMenu) navMenu.classList.remove('open');
     if (navOverlay) navOverlay.classList.remove('visible');
+    const btn = document.getElementById('hamburger-btn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
   },
 
   /**

@@ -161,8 +161,6 @@ function reportModelLoad(ent, c, loaded) {
 }
 
 function setWayfindingUi(on) {
-  const spawn = document.getElementById('spawn-btn');
-  if (spawn) spawn.style.display = on ? '' : 'none';
   const sharkRoot = document.getElementById('shark-root');
   if (sharkRoot && !on) {
     const animator = sharkRoot.components && sharkRoot.components['shark-animator'];

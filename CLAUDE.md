@@ -419,6 +419,10 @@ tower floating half a metre up (always had; found by the Sept 30 test run).
 - No test suite (`npm test` is a placeholder).
 - `vite.config.js` has a `copyStaticAssets` plugin that copies `assets/`, `data/`, and root GLB/patt files into `dist/` — vite can't trace runtime fetches (GLBs, `.mind`, JSON), so without it the deployed site 404s on all of them.
 - CSS is per-page (e.g. `src/css/shark-ar-8thwall-styles.css` for `shark-ar-8thwall.html`) plus `shared-styles.css`.
+- **Hamburger menu** (`navigation.js`): open/close it with the `open` / `visible` classes only — never an
+  inline `style.right`. One did (`closeNavIfOpen` on Summon), and inline beats `.open`, so the
+  hamburger only greyed the screen from then on (Oct 1). The on-screen "Summon a Shark" button is
+  gone; `window.manualSharkSpawn()` stays for the test run and the console.
 - `src/app.js` is the 8th Wall entry point; other HTML pages inline or script-tag their own logic.
 - `8w-distributed-engine/` is currently a placeholder (`.gitkeep`).
 - Deploy: `.github/workflows/deploy-pages.yml` builds **main** and publishes it to GitHub Pages

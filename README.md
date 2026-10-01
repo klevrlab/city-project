@@ -45,8 +45,10 @@ Camera and GPS need HTTPS, so `http://[LOCAL_IP]:8080` loads but the AR can't st
 Cloudflare quick tunnel instead (no account; one-time `brew install cloudflared`):
 ```bash
 npm run phone            # dev server — edit, then refresh on the phone
+npm run phone:test       # same, but the QR opens the at-home test suite (?test=1)
 npm run phone -- --dist  # the production build, as GitHub Pages will serve it
 ```
+A bigger QR for the laptop screen is written to `logs/phone/qr.html`.
 It prints a QR code (scan with the phone camera) and links to every page with the field log on.
 While it runs, the phone's field log streams back to the laptop — `logs/phone/YYYY-MM-DD.log`
 (gitignored; contains GPS), with errors, ★ marks and test steps also printed in the terminal.

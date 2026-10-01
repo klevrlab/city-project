@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "phone": "node tools/phone.mjs"
+    "phone": "node tools/phone.mjs",
+    "phone:test": "node tools/phone.mjs --test"
   },
   "repository": {
     "type": "git",

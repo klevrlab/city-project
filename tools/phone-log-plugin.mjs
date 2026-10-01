@@ -13,6 +13,9 @@
 // with sendBeacon, which can land seconds after the next regular batch. A
 // batch that never arrives is skipped after GAP_MS (and noted in the file).
 //
+// The dev server serves every file under the repo, and through the tunnel
+// that's the internet: logs/ (GPS) is refused here, however the path is spelled.
+//
 // Dev and preview servers only — the GitHub Pages build has no server, so
 // production pages never send anything.
 
@@ -97,7 +100,18 @@ export function phoneLogPlugin({ dir = 'logs/phone' } = {}) {
     process.on('exit', () => flush(true));
   }
 
+  function isLogsPath(url) {
+    let p = url.split('?')[0].split('#')[0];
+    try { p = decodeURIComponent(p); } catch { return true; }
+    // macOS paths are case-insensitive (/LOGS/ works); /@fs/<absolute path> reaches it too.
+    return /(^|\/)logs(\/|$)/i.test(path.posix.normalize(p.replace(/\\/g, '/')));
+  }
+
   function handle(req, res, next) {
+    if (isLogsPath(req.url)) {
+      res.statusCode = 404;
+      return res.end();
+    }
     if (req.url.split('?')[0] !== PHONE_LOG_ENDPOINT) return next();
     if (req.method !== 'POST') {
       res.statusCode = 405;

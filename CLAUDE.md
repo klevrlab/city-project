@@ -182,6 +182,8 @@ frames; this is the same idea in code, which keeps radius, speed and phase tunab
   its *length* adds to the apex — 2.5 m long (`JUMP_SHARK_MAX_DIM_M`), body centre peaking 1.6 m up
   (`JUMP_APEX_HEIGHT_M`), ~10 m run (`JUMP_RUN_M`, scaled separately from height). Measured: nose
   2.36 m, tail 1.04 m clear of the water at the top, mid-frame at 8 m with the phone level.
+  Apex is 1.6 m (body centre); `&jumpApex=2.2` tries another height on site. The Sept 30 evening
+  "make it higher" was marked while the floor had sunk ~4 m below the phone — re-test before raising.
   **Frustum culling is off for this mesh** — three culls rigged meshes by bind-pose bounds, and
   this clip carries the body far from them, so the shark vanished mid-breach while the splash drew.
 
@@ -327,6 +329,16 @@ Photo Mode mascots, drop distances, the jump and the party. The field log prints
 units so a scaled parent isn't undone, and grounds to the entity's own floor (local y = 0).
 Wayfinding swim-throughs and the dropped Jimmy are not rescaled (tuned as they are).
 
+**The floor follows the phone** (`MathUtils.trackGround`): 8th Wall's height drifts both ways. If the
+camera reads under 0.5 m or over 2.3 m above the floor for ~3 s, the floor (and `#ground`, the tap
+plane) is re-based 1.45 m under it — the log says "floor re-based … drifted up to the phone / away
+below it". The Sept 30 evening run climbed 2.3 → 36 units in two minutes; everything dropped on the
+old floor "looked really small" (party 13 m away, Photo taps 10–15 m out). The *scale* is re-taken
+only for a raise that settles: once, within 25 s of the first estimate, after the phone holds still
+(4 s to settle). A creep is never still — that run's drift was mis-read as "phone held low" and the
+scale jumped 1.52 → 2.20 (45% too big). Replay a camera path in the desktop sim by setting
+`#camera`'s `object3D.position.y` every 500 ms and reading `MathUtils.groundState()`.
+
 The scale is taken **once per session** (median camera height over the first ~10 s of tracking,
 or the first drop if sooner) and kept — the scale doesn't change after tracking starts, but the
 height does.
@@ -431,6 +443,11 @@ tower floating half a metre up (always had; found by the Sept 30 test run).
 - No test suite (`npm test` is a placeholder).
 - `vite.config.js` has a `copyStaticAssets` plugin that copies `assets/`, `data/`, and root GLB/patt files into `dist/` — vite can't trace runtime fetches (GLBs, `.mind`, JSON), so without it the deployed site 404s on all of them.
 - CSS is per-page (e.g. `src/css/shark-ar-8thwall-styles.css` for `shark-ar-8thwall.html`) plus `shared-styles.css`.
+- **Goalie on the Shark AR page** has its own scoreboard (`#sw-goalie-hud`, `sharks-way-modes.css`) —
+  the soccer page's `.pill` styles aren't loaded here, so the timer/score showed as bare text. Its
+  toasts use `.visible` + `data-variant` (soccer-game.js), Photo/Wayfinding's use `.show`; both are
+  styled, and `flashToast` clears a leftover `data-variant`. Before Oct 1 the countdown, GOAL! and
+  round summary never appeared on this page.
 - **Hamburger menu** (`navigation.js`): open/close it with the `open` / `visible` classes only — never an
   inline `style.right`. One did (`closeNavIfOpen` on Summon), and inline beats `.open`, so the
   hamburger only greyed the screen from then on (Oct 1). The on-screen "Summon a Shark" button is

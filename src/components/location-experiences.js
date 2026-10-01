@@ -53,6 +53,9 @@ const TOWER_HEIGHT_M = 8;      // the June 10 redline's 8 m / 26 ft replica
  */
 const JUMP_SHARK_MAX_DIM_M = 2.5;
 const JUMP_APEX_HEIGHT_M = 1.6;
+// Sept 30 evening, "can we make it higher" was marked with the camera reading ~4 m above
+// a floor that had sunk (MathUtils.trackGround now re-bases it), i.e. looked
+// down on from above. Left at 1.6; `&jumpApex=2.2` tries a height on site.
 const JUMP_RUN_M = 10;          // swim in, breach, swim off: ~10 m across the view
 
 /**
@@ -213,6 +216,8 @@ AFRAME.registerComponent('location-experiences', {
       params.get('test') === '1';
     const waterY = parseFloat(params.get('waterY'));
     this.riverWaterY = isFinite(waterY) ? waterY : RIVER_WATER_Y_M;
+    const apex = parseFloat(params.get('jumpApex'));
+    this.jumpApexM = apex > 0 && apex < 10 ? apex : JUMP_APEX_HEIGHT_M;
 
     if (this.el.sceneEl.hasLoaded) this.start();
     else this.el.sceneEl.addEventListener('loaded', () => this.start(), { once: true });
@@ -827,7 +832,7 @@ AFRAME.registerComponent('location-experiences', {
     // Splash as the body breaks the surface and as it drops back in — at the
     // default 0.5 m the "exit" splash fired near the top of a 0.7 m hop, well
     // after the shark had left the water ("doesn't match the animation").
-    ent.setAttribute('dive-clip', { apexHeightM: JUMP_APEX_HEIGHT_M, runM: JUMP_RUN_M, splashAboveM: 0.15 });
+    ent.setAttribute('dive-clip', { apexHeightM: this.jumpApexM, runM: JUMP_RUN_M, splashAboveM: 0.15 });
     // A shadow belongs on the water, not on the pavement plane metres above it.
     if (!(waterY < 0)) ent.setAttribute('shadow', 'cast: true');
     root.appendChild(ent);

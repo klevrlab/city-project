@@ -114,6 +114,7 @@ function flashToast(text, ms = 2200) {
   const el = document.getElementById('toast');
   if (!el) return;
   el.textContent = text;
+  el.removeAttribute('data-variant');   // Goalie's countdown / goal styling must not stick
   el.classList.add('show');
   clearTimeout(flashToast._t);
   flashToast._t = setTimeout(() => el.classList.remove('show'), ms);
@@ -356,7 +357,10 @@ function disarmSoccer() {
     if (el) el.style.display = 'none';
   });
   const toast = document.getElementById('toast');
-  if (toast) toast.classList.remove('show');
+  if (toast) {
+    toast.classList.remove('show', 'visible');
+    toast.removeAttribute('data-variant');
+  }
 }
 
 function armSoccer() {
@@ -374,6 +378,7 @@ function armSoccer() {
 }
 
 function setGoalieUi(on) {
+  document.body.classList.toggle('sw-goalie-active', on);
   if (on) armSoccer();
   else disarmSoccer();
 }
@@ -990,14 +995,19 @@ function injectModeUi() {
   `;
   document.body.appendChild(preview);
 
+  // Goalie scoreboard. Its own bar under the top bar, not inside it: on a
+  // phone the title and menu button leave no room, and the soccer page's
+  // .pill styles aren't loaded here — Oct 1: "point system looks unstyled".
+  // soccer-game.js shows and hides #timer / #score itself.
   if (!document.getElementById('timer')) {
-    const topbar = document.getElementById('topbar');
-    if (topbar) {
-      topbar.insertAdjacentHTML('beforeend', `
-        <span id="timer" class="pill sw-goalie-pill" style="display:none">00:30</span>
-        <span id="score" class="pill sw-goalie-pill" style="display:none">Goals 0 / 0</span>
-      `);
-    }
+    const hud = document.createElement('div');
+    hud.id = 'sw-goalie-hud';
+    hud.setAttribute('aria-live', 'polite');
+    hud.innerHTML = `
+      <span id="timer" class="sw-goalie-pill" style="display:none">00:30</span>
+      <span id="score" class="sw-goalie-pill" style="display:none">Goals 0 / 0</span>
+    `;
+    document.body.appendChild(hud);
   }
   if (!document.getElementById('reset-btn')) {
     const btn = document.createElement('button');

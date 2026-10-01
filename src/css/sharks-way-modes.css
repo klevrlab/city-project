@@ -201,8 +201,88 @@ body.sw-photo-active #toast {
   transform: translateX(-50%) translateY(0);
 }
 
+/* Goalie scoreboard: timer + points under the top bar, centred. */
+#sw-goalie-hud {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  gap: 6px;
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
+}
+
 .sw-goalie-pill {
-  pointer-events: auto;
+  box-sizing: border-box;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(0, 22, 26, 0.8);
+  border: 1px solid rgba(0, 169, 224, 0.45);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+#timer.sw-goalie-pill {
+  min-width: 64px;
+  text-align: center;
+  color: #ffd54a;
+  border-color: rgba(255, 213, 74, 0.5);
+}
+
+/* The location pill sits where the scoreboard goes, and drops aren't on
+   offer in Goalie anyway. */
+body.sw-goalie-active #location-status {
+  display: none;
+}
+
+/* Goalie's toasts (soccer-game.js): it shows them with .visible and a
+   data-variant, and they read best mid-screen above the goal. Without these
+   the countdown, GOAL! and the round summary never appeared on this page. */
+#toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+body.sw-goalie-active #toast {
+  top: 34%;
+  bottom: auto;
+}
+
+#toast[data-variant="countdown"] {
+  min-width: 116px;
+  padding: 12px 28px;
+  border-radius: 20px;
+  font-size: 52px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+#toast[data-variant="goal"] {
+  padding: 14px 26px;
+  border-radius: 18px;
+  background: rgba(40, 200, 120, 0.9);
+  border-color: rgba(255, 255, 255, 0.45);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+#toast[data-variant="miss"] {
+  font-size: 16px;
+}
+
+#toast[data-variant="summary"] {
+  padding: 14px 20px;
+  line-height: 1.45;
+  white-space: pre-line;
+  font-size: 14px;
 }
 
 /* Pause XR canvas under selfie overlay */

@@ -80,7 +80,7 @@
   const PHONE_HEIGHT_M = 1.45;
   const clampScale = (y) => Math.min(Math.max(y / PHONE_HEIGHT_M, 0.8), 2.2);
   const camY = (cameraEl) => cameraEl.object3D.getWorldPosition(new THREE.Vector3()).y;
-  const ground = { k: null, kFrom: '', floorY: 0, timer: null };
+  const ground = { k: null, kFrom: '', kAt: 0, retaken: false, floorY: 0, rebases: 0, timer: null };
 
   function unitsPerMetre(cameraEl) {
     if (ground.k) return ground.k;
@@ -88,6 +88,7 @@
     const y = camY(cameraEl) - ground.floorY;
     if (!(y > 0)) return 1;
     ground.k = clampScale(y);
+    ground.kAt = Date.now();
     ground.kFrom = `first drop, camera ${y.toFixed(2)} units up`;
     note(`scale ${ground.k.toFixed(2)} units/m (${ground.kFrom})`);
     return ground.k;
@@ -119,19 +120,34 @@
    *  - below FLOOR_DRIFT_M for ~3 s: the floor has drifted up to the phone
    *    (the corridor case) — re-base it PHONE_HEIGHT_M below the camera, and
    *    move #ground there, so taps, shadows and every drop follow;
-   *  - above SCALE_LOW_M: far more likely the page opened with the phone held
-   *    low and the scale was taken too small (the Sept 30 at-home run: camera
-   *    2.4 units) than a floor that sank — re-take the scale instead.
+   *  - above FLOOR_HIGH_M for ~3 s: the floor has sunk away from the phone —
+   *    re-base it the same way. Sept 30 evening test run, at home: the camera
+   *    climbed from 2.3 to 36 units in two minutes (~16 m "up"), drops landed
+   *    on a floor far below and everything read as "looks really small", the
+   *    party 13 m away, Photo Mode taps 10–15 m out. Climbing stairs ends up
+   *    in the same place, which is also right: content lands at your feet;
+   *  - above SCALE_LOW_M soon after the scale was taken, with the phone held
+   *    steady: the page opened with the phone low and the scale came out too
+   *    small (Sept 30 morning run, camera 2.4 units) — re-take the scale, once.
+   *    Only once, only in the first RETAKE_WINDOW_MS, only when steady: the
+   *    evening run's slow climb was read as this at 47 s and the scale jumped
+   *    1.52 → 2.20 (45% too big) — drift is a creep, raising the phone is a
+   *    step and then still.
    * Things already placed stay where they are.
    */
   const FLOOR_DRIFT_M = 0.5;
+  const FLOOR_HIGH_M = 2.3;          // above any phone in a hand, arm up included
   const SCALE_LOW_M = 2.2;
+  const RETAKE_WINDOW_MS = 25000;
+  const STEADY_M = 0.1;              // spread of the last ~3 s of camera heights
+  const SETTLE_MS = 4000;            // how long a raise gets to come to rest
   function trackGround(cameraEl, groundEl) {
     if (ground.timer || !cameraEl) return;
     let untracked = null;
     let tracking = false;
     const first = [];
     const recent = [];
+    let highSince = 0;
     ground.timer = setInterval(() => {
       if (!cameraEl.object3D) return;
       const y = camY(cameraEl);
@@ -146,6 +162,7 @@
         if (first.length >= 20) {
           const m = median(first);
           ground.k = clampScale(m - ground.floorY);
+          ground.kAt = Date.now();
           ground.kFrom = `first 10 s of tracking, camera ~${m.toFixed(2)} units up`;
           note(`scale ${ground.k.toFixed(2)} units/m (${ground.kFrom})`);
         }
@@ -156,19 +173,37 @@
       if (recent.length < 6) return;
       const yNow = median(recent);
       const h = (yNow - ground.floorY) / ground.k;
-      if (h > SCALE_LOW_M && ground.k < 2.2) {
-        const was = ground.k;
-        ground.k = clampScale(yNow - ground.floorY);
-        ground.kFrom = `re-taken: camera ${(yNow - ground.floorY).toFixed(2)} units above the floor`;
-        note(`scale ${was.toFixed(2)} → ${ground.k.toFixed(2)} units/m (camera ${h.toFixed(2)} m up at the old scale — page opened with the phone low)`);
-        return;
+      const steady = (Math.max(...recent) - Math.min(...recent)) / ground.k < STEADY_M;
+      if (h > SCALE_LOW_M) {
+        if (!highSince) highSince = Date.now();
+        // Early on, a raise that comes to rest means the scale was taken low.
+        // Give it SETTLE_MS to stop moving; a creep never does, and falls
+        // through to a floor re-base.
+        if (ground.k < 2.2 && !ground.retaken && highSince - ground.kAt < RETAKE_WINDOW_MS) {
+          if (steady) {
+            const was = ground.k;
+            ground.k = clampScale(yNow - ground.floorY);
+            ground.retaken = true;
+            highSince = 0;
+            ground.kFrom = `re-taken: camera ${(yNow - ground.floorY).toFixed(2)} units above the floor`;
+            note(`scale ${was.toFixed(2)} → ${ground.k.toFixed(2)} units/m (camera ${h.toFixed(2)} m up at the old scale — page opened with the phone low)`);
+            return;
+          }
+          if (Date.now() - highSince < SETTLE_MS) return;
+        }
+      } else {
+        highSince = 0;
       }
-      if (h >= FLOOR_DRIFT_M) return;
+      if (h >= FLOOR_DRIFT_M && h <= FLOOR_HIGH_M) return;
       const was = ground.floorY;
       ground.floorY = yNow - PHONE_HEIGHT_M * ground.k;
+      ground.rebases++;
+      highSince = 0;
+      recent.length = 0;   // judge the new floor on fresh samples
       if (groundEl && groundEl.object3D) groundEl.object3D.position.y = ground.floorY;
       note(`floor re-based ${was.toFixed(2)} → ${ground.floorY.toFixed(2)} units ` +
-        `(camera ${yNow.toFixed(2)} units up = ${h.toFixed(2)} m above the old floor; tracking drifted)`);
+        `(camera ${yNow.toFixed(2)} units up = ${h.toFixed(2)} m above the old floor; tracking drifted ` +
+        `${h < FLOOR_DRIFT_M ? 'up to the phone' : 'away below it'})`);
     }, 500);
   }
 
@@ -179,7 +214,7 @@
 
   /** For the log's stats line and the debug panel. */
   function groundState() {
-    return { k: ground.k, kFrom: ground.kFrom, floorY: ground.floorY };
+    return { k: ground.k, kFrom: ground.kFrom, floorY: ground.floorY, rebases: ground.rebases };
   }
 
   global.MathUtils = {

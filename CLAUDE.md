@@ -301,6 +301,13 @@ Kept in localStorage (current page load + 2 earlier), so a crash or reload doesn
 that never reached `pagehide` is flagged **ENDED WITHOUT UNLOADING** (on iPhone, usually the tab
 killed for memory). Nothing leaves the phone until someone taps Share/Download. Contains GPS.
 
+**Exception — `npm run phone`:** a page served through a `*.trycloudflare.com` tunnel also posts its
+lines every 2 s to the laptop's dev server (`tools/phone-log-plugin.mjs`), which writes
+`logs/phone/YYYY-MM-DD.log` (gitignored) and echoes errors / ★ marks / test steps / drops to the
+terminal. To read a phone test, read that file. Batches are numbered and written in order (a
+`sendBeacon` from a backgrounded page can land late); gaps are noted after 10 s. github.io never
+streams; `?logStream=1` / `0` forces it on / off.
+
 To get a log: `shark-ar-8thwall.html?debug=1` → 🛠 → **LOG** → SHARE LOG (AirDrop / Messages /
 Files) or DOWNLOAD; **MARK A MOMENT** drops a note into the log when something looks wrong. On other
 pages (or with `?log=1`) a small **LOG** button sits bottom-left with the same actions.

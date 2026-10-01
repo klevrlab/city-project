@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { cpSync, existsSync, readdirSync } from 'fs';
+import { phoneLogPlugin } from './tools/phone-log-plugin.mjs';
 
 // Vite only bundles files it can trace from module imports / known HTML
 // attributes. Everything the AR pages fetch at runtime — GLB models,
@@ -33,7 +34,8 @@ export default defineConfig({
   // Base public path when served in development or production.
   // We use relative paths './' because GitHub pages often serves from a subdirectory (e.g. username.github.io/repo-name)
   base: './',
-  plugins: [copyStaticAssets()],
+  // phoneLogPlugin: dev/preview only — writes a phone's field log to logs/phone/ during `npm run phone`.
+  plugins: [copyStaticAssets(), phoneLogPlugin()],
   build: {
     rollupOptions: {
       input: {

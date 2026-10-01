@@ -48,6 +48,8 @@ npm run phone            # dev server — edit, then refresh on the phone
 npm run phone -- --dist  # the production build, as GitHub Pages will serve it
 ```
 It prints a QR code (scan with the phone camera) and links to every page with the field log on.
+While it runs, the phone's field log streams back to the laptop — `logs/phone/YYYY-MM-DD.log`
+(gitignored; contains GPS), with errors, ★ marks and test steps also printed in the terminal.
 The `https://….trycloudflare.com` address is new each run; Ctrl+C stops it.
 
 ## AR Experiences

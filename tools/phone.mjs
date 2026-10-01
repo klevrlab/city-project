@@ -9,10 +9,15 @@
 // free https://<random>.trycloudflare.com address — no account, nothing to
 // install on the phone. The address changes every run; Ctrl+C stops both.
 // Needs: brew install cloudflared
+//
+// Pages opened with ?log=1 (every link printed here) stream the field log back
+// to the laptop: logs/phone/YYYY-MM-DD.log, with errors, ★ marks, test steps,
+// drops and 8th Wall events echoed below (tools/phone-log-plugin.mjs).
 
 import { spawn, spawnSync } from 'node:child_process';
 import { Resolver } from 'node:dns/promises';
 import qrcode from 'qrcode-terminal';
+import { PHONE_LOG_PREFIX } from './phone-log-plugin.mjs';
 
 const useDist = process.argv.includes('--dist');
 const port = useDist ? 4173 : 5173;
@@ -65,7 +70,9 @@ if (spawnSync('cloudflared', ['--version']).error) {
 }
 
 // 1. Local server — reuse one that's already running on the port.
+let reused = false;
 if (await isUp(local)) {
+  reused = true;
   console.log(`• Using the server already running at ${local}`);
 } else {
   if (useDist) {
@@ -77,8 +84,16 @@ if (await isUp(local)) {
     ? ['vite', 'preview', '--port', String(port), '--strictPort']
     : ['vite', '--port', String(port), '--strictPort', '--open', 'false'];
   console.log(`• Starting ${useDist ? 'the production build' : 'the dev server'} on ${local}`);
-  const server = spawn('npx', args, { stdio: ['ignore', 'ignore', 'inherit'] });
+  const server = spawn('npx', args, { stdio: ['ignore', 'pipe', 'inherit'] });
   children.push(server);
+  // Vite's own banner is noise here; pass through only the phone's log lines.
+  let pending = '';
+  server.stdout.on('data', (chunk) => {
+    pending += chunk;
+    const lines = pending.split('\n');
+    pending = lines.pop();
+    for (const l of lines) if (l.startsWith(PHONE_LOG_PREFIX)) console.log(l);
+  });
   server.on('exit', (code) => {
     console.error(`✗ Local server stopped (exit ${code})`);
     stopAll(1);
@@ -127,7 +142,7 @@ function announce(url) {
   console.log('────────────────────────────────────────────────────────────\n');
   qrcode.generate(page('shark-ar-8thwall.html?log=1'), { small: true });
   console.log(' Scan with the iPhone camera → opens Shark AR with the field log on.\n');
-  console.log(` Home          ${page('')}`);
+  console.log(` Home          ${page('?log=1')}`);
   console.log(` Shark AR      ${page('shark-ar-8thwall.html?log=1')}`);
   console.log(` Debug panel   ${page('shark-ar-8thwall.html?debug=1')}`);
   console.log(` At-home test  ${page('shark-ar-8thwall.html?test=1')}`);
@@ -135,5 +150,6 @@ function announce(url) {
   console.log(` Living Mural  ${page('mural-ar.html?log=1')}`);
   console.log(` Tour          ${page('location-tour.html?log=1')}`);
   console.log(`\n ${useDist ? 'Rebuild (Ctrl+C, run again) to see code changes.' : 'Edit code, then refresh on the phone.'}`);
-  console.log(' The address changes every run. Ctrl+C stops the tunnel.\n');
+  console.log(' The address changes every run. Ctrl+C stops the tunnel.');
+  console.log(` Phone logs → logs/phone/ (contain GPS — not committed)${reused ? '; the already-running server writes them, so they won\'t echo here' : '; errors, ★ marks and test steps also print below'}.\n`);
 }

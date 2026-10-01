@@ -11,11 +11,16 @@
  * (fps, JS heap, GPU textures/geometries, scan status and score, mode). App
  * code adds its own lines with SharksWayLog.add(category, message).
  *
- * Nothing is sent anywhere. Lines are kept in localStorage so a crash or
- * reload doesn't lose them — the next load notes a session that ended without
- * unloading, which on an iPhone usually means Safari killed the tab (memory) —
- * and they only leave the phone when someone taps Share or Download. The log
- * includes GPS positions.
+ * Lines are kept in localStorage so a crash or reload doesn't lose them — the
+ * next load notes a session that ended without unloading, which on an iPhone
+ * usually means Safari killed the tab (memory) — and they only leave the phone
+ * when someone taps Share or Download. The log includes GPS positions.
+ *
+ * One exception, for the dev team's own testing: when the page came through
+ * `npm run phone` (a *.trycloudflare.com address), lines are also posted every
+ * 2 s to that laptop's dev server, which writes them to logs/phone/
+ * (tools/phone-log-plugin.mjs). The public site (github.io) never sends.
+ * ?logStream=1 turns it on for a local dev server; ?logStream=0 off.
  *
  * A classic script loaded first in <head>, not a module: modules run after the
  * page is parsed, too late to see a CDN script fail to load.
@@ -76,13 +81,34 @@
   var dirty = false;
   var persistOk = true;
 
+  // Live copy to the laptop running `npm run phone` (see header). Decided here,
+  // before the first add(), so the device header lines are sent too.
+  var STREAM_ENDPOINT = '/__sharksway-log';
+  var STREAM_MS = 2000;
+  var MAX_OUTBOX = 3000;
+  var outbox = [];
+  var streaming = /\.trycloudflare\.com$/.test(window.location.hostname);
+  try {
+    var streamFlag = new URLSearchParams(window.location.search).get('logStream');
+    if (streamFlag === '1') window.sessionStorage.setItem('sharksway.log.stream', '1');
+    if (streamFlag === '0') window.sessionStorage.setItem('sharksway.log.stream', '0');
+    var streamPref = window.sessionStorage.getItem('sharksway.log.stream');
+    if (streamPref === '1') streaming = true;
+    if (streamPref === '0') streaming = false;
+  } catch (e) { /* keep the hostname rule */ }
+
   function now() { return Math.round(performance.now() - startPerf); }
 
   function add(category, message) {
     var msg = typeof message === 'string' ? message : describe(message);
     if (msg.length > MAX_MSG) msg = msg.slice(0, MAX_MSG) + '…';
-    cur.entries.push([now(), String(category || 'log'), msg]);
+    var entry = [now(), String(category || 'log'), msg];
+    cur.entries.push(entry);
     if (cur.entries.length > MAX_ENTRIES) cur.entries.splice(0, cur.entries.length - MAX_ENTRIES);
+    if (streaming) {
+      outbox.push(lineText(cur.start, entry));
+      if (outbox.length > MAX_OUTBOX) outbox.splice(0, outbox.length - MAX_OUTBOX);
+    }
     dirty = true;
     if (panel && panel.open) renderPanel();
   }
@@ -148,6 +174,10 @@
     }
   }
 
+  function lineText(start, e) {
+    return clock(start + e[0]) + ' +' + (e[0] / 1000).toFixed(1) + 's [' + e[1] + '] ' + e[2];
+  }
+
   function pad(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
 
   function clock(ms) {
@@ -205,10 +235,7 @@
       (s === cur ? 'current' : (s.ended ? 'ended normally' :
         'ENDED WITHOUT UNLOADING (tab killed or crashed — often memory on iPhone)')) + ' =====';
     var lines = [head];
-    for (var i = 0; i < s.entries.length; i++) {
-      var e = s.entries[i];
-      lines.push(clock(s.start + e[0]) + ' +' + (e[0] / 1000).toFixed(1) + 's [' + e[1] + '] ' + e[2]);
-    }
+    for (var i = 0; i < s.entries.length; i++) lines.push(lineText(s.start, s.entries[i]));
     return lines.join('\n');
   }
 
@@ -321,8 +348,82 @@
     });
   }
 
+  // ---- live stream to the laptop ---------------------------------------------------------
+
+  // Batches are numbered and the laptop writes them in number order: a
+  // sendBeacon from a page going to the background can land after the next
+  // regular batch. A failed batch is re-sent with the same number.
+  var streamBusy = false;
+  var streamSeq = 0;
+  var streamRetry = null;
+
+  function deviceName() {
+    var m = navigator.userAgent.match(/\(([^)]+)\)/);
+    return m ? m[1].slice(0, 100) : 'unknown device';
+  }
+
+  function streamBody(batch) {
+    return JSON.stringify({ id: cur.id, seq: batch.seq, page: cur.page, device: deviceName(), lines: batch.lines });
+  }
+
+  function stopStreaming(reason) {
+    streaming = false;
+    outbox = [];
+    streamRetry = null;
+    add('page', 'live log to the laptop off — ' + reason);
+  }
+
+  // final: the page is going away — sendBeacon survives the unload, fetch may not.
+  function flushStream(final) {
+    if (!streaming || (!outbox.length && !streamRetry)) return;
+    if (final && navigator.sendBeacon) {
+      try {
+        if (streamRetry && navigator.sendBeacon(STREAM_ENDPOINT,
+          new Blob([streamBody(streamRetry)], { type: 'application/json' }))) streamRetry = null;
+      } catch (e) { /* the retry tick sends it */ }
+      while (outbox.length) {
+        var chunk = { seq: streamSeq, lines: outbox.slice(0, 200) };
+        var sent = false;
+        try {
+          sent = navigator.sendBeacon(STREAM_ENDPOINT, new Blob([streamBody(chunk)], { type: 'application/json' }));
+        } catch (e) { /* fall through */ }
+        if (!sent) break;
+        streamSeq++;
+        outbox.splice(0, chunk.lines.length);
+      }
+      return;
+    }
+    if (streamBusy) return;
+    streamBusy = true;
+    var batch = streamRetry || { seq: streamSeq++, lines: outbox.splice(0, 500) };
+    streamRetry = null;
+    var body = streamBody(batch);
+    fetch(STREAM_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body,
+      keepalive: body.length < 60000
+    }).then(function (r) {
+      streamBusy = false;
+      // No receiver: a tunnel to something other than this repo's dev server.
+      if (r.status === 404 || r.status === 405 || r.status === 501) {
+        stopStreaming('this server has no log receiver (HTTP ' + r.status + ')');
+        return;
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (outbox.length) flushStream(false);
+    }).catch(function () {
+      // Offline or the tunnel dropped: same batch, same number, next tick.
+      streamBusy = false;
+      streamRetry = batch;
+    });
+  }
+
+  if (streaming) setInterval(function () { flushStream(false); }, STREAM_MS);
+
   window.SharksWayLog = {
     enabled: true,
+    streaming: function () { return streaming; },
     add: add,
     mark: mark,
     askNote: askNote,
@@ -366,7 +467,7 @@
   try {
     new PerformanceObserver(function (list) {
       list.getEntries().forEach(function (r) {
-        if (/^(data|blob):/.test(r.name)) return;
+        if (/^(data|blob):/.test(r.name) || r.name.indexOf(STREAM_ENDPOINT) !== -1) return;
         var status = r.responseStatus;
         var interesting = /\.(glb|bin|wasm|mind|json|js|css|mp4|png|jpe?g)(\?|$)/i.test(r.name) ||
           r.initiatorType === 'script' || status >= 400;
@@ -413,13 +514,14 @@
 
   document.addEventListener('visibilitychange', function () {
     add('page', 'visibility ' + document.visibilityState);
-    if (document.visibilityState === 'hidden') { dirty = true; save(); }
+    if (document.visibilityState === 'hidden') { dirty = true; save(); flushStream(true); }
   });
   window.addEventListener('pagehide', function (e) {
     add('page', 'pagehide' + (e.persisted ? ' (to back/forward cache)' : ''));
     cur.ended = true;
     dirty = true;
     save();
+    flushStream(true);
   });
   window.addEventListener('pageshow', function (e) {
     if (e.persisted) { cur.ended = false; add('page', 'pageshow from back/forward cache'); }
@@ -532,7 +634,8 @@
     var info = panel.el.querySelector('[data-log-info]');
     if (info) {
       info.textContent = cur.entries.length + ' lines this page · ' + (prev.length + 1) +
-        ' page load(s) stored' + (persistOk ? '' : ' · storage full, memory only');
+        ' page load(s) stored' + (persistOk ? '' : ' · storage full, memory only') +
+        (streaming ? ' · live copy going to the laptop' : '');
     }
   }
 
@@ -611,5 +714,6 @@
     setInterval(syncButton, 3000);
   });
 
-  add('page', 'logging on (?log=0 turns it off)');
+  add('page', 'logging on (?log=0 turns it off)' +
+    (streaming ? ' · live copy to the laptop (npm run phone; ?logStream=0 stops it)' : ''));
 })();

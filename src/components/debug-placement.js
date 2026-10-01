@@ -383,7 +383,8 @@ AFRAME.registerComponent('debug-placement', {
       return;
     }
     const entries = L.entries();
-    info.textContent = `${entries.length} lines this page · ${L.sessions()} page load(s) stored`;
+    info.textContent = `${entries.length} lines this page · ${L.sessions()} page load(s) stored` +
+      (L.streaming && L.streaming() ? ' · live copy going to the laptop' : '');
     box.innerHTML = entries.slice(-60).reverse().map((e) => {
       const cls = e[1] === 'error' ? 'dbg-error' : e[1] === 'warn' ? 'dbg-warn' : '';
       return `<div class="dbg-log ${cls}">+${(e[0] / 1000).toFixed(1)}s [${e[1]}] ${escapeHtml(e[2])}</div>`;

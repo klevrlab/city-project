@@ -6,10 +6,6 @@ AFRAME.registerComponent('tour-ui', {
     autoShow: { type: 'boolean', default: false }
   },
   init: function () {
-    this.navMenu = document.getElementById('nav-menu');
-    this.navOverlay = document.getElementById('nav-overlay');
-    this.hamburgerBtn = document.getElementById('hamburger-btn');
-    this.closeMenuBtn = document.getElementById('close-menu');
     this.eventInfo = document.getElementById('event-info');
     this.learnMoreBtn = document.getElementById('learn-more');
     this.modelOverlay = document.getElementById('model-overlay');
@@ -17,33 +13,16 @@ AFRAME.registerComponent('tour-ui', {
 
     // Bind event handlers
     this.onSharkFound = this.onSharkFound.bind(this);
-    this.openMenu = this.openMenu.bind(this);
-    this.closeMenu = this.closeMenu.bind(this);
     this.onLearnMore = this.onLearnMore.bind(this);
     this.onDismiss = this.onDismiss.bind(this);
 
     // Setup listeners
     this.el.sceneEl.addEventListener('sharkFound', this.onSharkFound);
     
-    if (this.hamburgerBtn) {
-      this.hamburgerBtn.addEventListener('click', this.openMenu);
-      this.hamburgerBtn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        this.openMenu();
-      });
-    }
-
-    if (this.closeMenuBtn) {
-      this.closeMenuBtn.addEventListener('click', this.closeMenu);
-      this.closeMenuBtn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        this.closeMenu();
-      });
-    }
-
-    if (this.navOverlay) {
-      this.navOverlay.addEventListener('click', this.closeMenu);
-    }
+    // The menu belongs to navigation.js (initNavigation). This used to bind
+    // its own hamburger/close handlers too; their touchend preventDefault
+    // swallowed the click, so on a phone navigation.js never ran — its
+    // aria state and leftover-position reset were skipped (Oct 1).
 
     if (this.learnMoreBtn) {
       this.learnMoreBtn.addEventListener('click', this.onLearnMore);
@@ -53,12 +32,6 @@ AFRAME.registerComponent('tour-ui', {
     if (dismissBtn) {
       dismissBtn.addEventListener('click', this.onDismiss);
     }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.navMenu && this.navMenu.classList.contains('open')) {
-        this.closeMenu();
-      }
-    });
 
     // Map initialization logic can also be here or in a separate component
     this.initMap();
@@ -133,18 +106,6 @@ AFRAME.registerComponent('tour-ui', {
     if (this.modelOverlay) this.modelOverlay.classList.remove('visible');
     if (this.sharkLabel) this.sharkLabel.classList.remove('visible');
     this.el.sceneEl.emit('dismissSharkUi');
-  },
-
-  openMenu: function () {
-    if (this.navMenu) this.navMenu.classList.add('open');
-    if (this.navOverlay) this.navOverlay.classList.add('visible');
-    if (window.AudioUtils) window.AudioUtils.playSound('tap');
-  },
-
-  closeMenu: function () {
-    if (this.navMenu) this.navMenu.classList.remove('open');
-    if (this.navOverlay) this.navOverlay.classList.remove('visible');
-    if (window.AudioUtils) window.AudioUtils.playSound('tap');
   },
 
   initMap: function () {

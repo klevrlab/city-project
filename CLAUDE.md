@@ -423,6 +423,11 @@ tower floating half a metre up (always had; found by the Sept 30 test run).
   inline `style.right`. One did (`closeNavIfOpen` on Summon), and inline beats `.open`, so the
   hamburger only greyed the screen from then on (Oct 1). The on-screen "Summon a Shark" button is
   gone; `window.manualSharkSpawn()` stays for the test run and the console.
+  `navigation.js` is the menu's only owner — `tour-ui.js` used to bind the hamburger too, and its
+  `touchend` preventDefault meant navigation.js never ran on a phone. Pages whose `#topbar` has
+  `pointer-events: none` (mural, soccer) need the button switched back on — `navigation.css` does it
+  for `#hamburger-btn`; the menu was dead on both pages until Oct 1. The open menu sits above the
+  debug panel and test card (z 10010+).
 - `src/app.js` is the 8th Wall entry point; other HTML pages inline or script-tag their own logic.
 - `8w-distributed-engine/` is currently a placeholder (`.gitkeep`).
 - Deploy: `.github/workflows/deploy-pages.yml` builds **main** and publishes it to GitHub Pages

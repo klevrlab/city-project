@@ -127,12 +127,14 @@
 
 /* ── Phone pass (Sept 30) ──
    The menu is above every page's own overlays (status pills sit at 1100,
-   hints at 2000 — they used to show through the open menu), sized in
+   hints at 2000 — they used to show through the open menu — and with
+   ?test=1 / ?debug=1 the test card is 3000 and the debug panel 10001, which
+   covered an open menu). Only the field log's own controls sit higher. Sized in
    border-box so full-width buttons don't run off the right edge, and uses
    dvh so the last link isn't under Safari's toolbar. */
-#nav-overlay { z-index: 2400; }
+#nav-overlay { z-index: 10010; }
 #nav-menu {
-    z-index: 2500;
+    z-index: 10011;
     box-sizing: border-box;
     width: min(300px, 85vw);
     height: 100vh;
@@ -157,3 +159,8 @@
     position: absolute;
     inset: -4px;
 }
+
+/* The mural and soccer pages turn taps off on #topbar (so it doesn't block
+   the AR view) and back on only for `a` / `h1`; the injected button
+   inherited `none`, and the menu never opened on either page. */
+#topbar #hamburger-btn { pointer-events: auto; }

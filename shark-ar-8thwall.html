@@ -103,7 +103,7 @@
         xrextras-almost-there
         xrextras-runtime-error
         xrextras-loading
-        xrweb
+        xrweb="scale: absolute"
         vr-mode-ui="enabled: false"
         cursor="rayOrigin: mouse"
         raycaster="objects: .clickable"
@@ -142,11 +142,12 @@
     </a-scene>
 
     <script>
-        // Real-world scale (see MathUtils.isMetric) is opt-in until it has had
-        // an on-site check: ?scale=absolute. Must run here, before 8th Wall
+        // Real-world scale is the default since Oct 2 (xrweb on #xrscene; see
+        // MathUtils.isMetric). ?scale=responsive goes back to the old guessed
+        // scale if a phone has trouble with it. Must run here, before 8th Wall
         // starts — the scale can't change after XR8.run().
-        if (new URLSearchParams(location.search).get('scale') === 'absolute') {
-            document.getElementById('xrscene').setAttribute('xrweb', 'scale: absolute');
+        if (new URLSearchParams(location.search).get('scale') === 'responsive') {
+            document.getElementById('xrscene').setAttribute('xrweb', 'scale: responsive');
         }
         // Start logic - 8th Wall components on a-scene will handle run()
         window.addEventListener('xrloaded', () => {

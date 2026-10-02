@@ -3,7 +3,8 @@
  *
  * Off unless the page URL has ?debug=1 or ?log=1. The choice sticks for the
  * rest of the tab's session (so moving between pages with the menu keeps
- * logging); ?log=0 turns it off.
+ * logging); ?log=0 turns it off. Developer addresses only (DEV_HOST below) —
+ * always off on the public site.
  *
  * When on, it records from the first script on the page: console output,
  * errors and failed downloads, every file fetched (size and time), 8th Wall /
@@ -39,6 +40,19 @@
 
   function noop() {}
 
+  // The team's test tools — this log and its LOG button, the ?debug=1 panel,
+  // the ?test=1 checklist, the ?desktop=1 sim — only open on a developer
+  // address: this laptop, its Wi-Fi address, or the `npm run phone` tunnel.
+  // On the public site their URL flags do nothing (Oct 2, final production
+  // build: "strip all debug HUD"). Set before anything else so the modules
+  // can ask: window.SharksWayDevHost.
+  var DEV_HOST = (function (h) {
+    return h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1' ||
+      /\.(localhost|local|trycloudflare\.com)$/.test(h) ||
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h);
+  })(window.location.hostname);
+  window.SharksWayDevHost = DEV_HOST;
+
   var flag = null;
   try {
     var params = new URLSearchParams(window.location.search);
@@ -48,6 +62,7 @@
   } catch (e) { /* old browser — stay off */ }
 
   var enabled = false;
+  if (!DEV_HOST) flag = '0';
   try {
     if (flag === '0') window.sessionStorage.removeItem(FLAG_KEY);
     else if (flag === '1') window.sessionStorage.setItem(FLAG_KEY, '1');

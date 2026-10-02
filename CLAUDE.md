@@ -182,8 +182,8 @@ frames; this is the same idea in code, which keeps radius, speed and phase tunab
   its *length* adds to the apex — 2.5 m long (`JUMP_SHARK_MAX_DIM_M`), body centre peaking 1.6 m up
   (`JUMP_APEX_HEIGHT_M`), ~10 m run (`JUMP_RUN_M`, scaled separately from height). Measured: nose
   2.36 m, tail 1.04 m clear of the water at the top, mid-frame at 8 m with the phone level.
-  Apex is 1.6 m (body centre); `&jumpApex=2.2` tries another height on site. The Sept 30 evening
-  "make it higher" was marked while the floor had sunk ~4 m below the phone — re-test before raising.
+  **Oct 2 (final production build): tripled to 4.8 m** at Chris's request ("3x the height of the
+  river jump") — the figures above are the 1.6 m version. `&jumpApex=` tries other heights on site.
   **Frustum culling is off for this mesh** — three culls rigged meshes by bind-pose bounds, and
   this clip carries the body far from them, so the shark vanished mid-breach while the splash drew.
 
@@ -225,6 +225,17 @@ of you" — the wayfinding swim-throughs stay camera-relative on purpose.
 
 Each pin gets its own sub-anchor at its true coordinate, so a saved placement override is an offset
 **from the pin** and stays valid on the next visit, when the visitor stands somewhere else.
+
+## Debug tools are developer-only (Oct 2, final production build)
+
+The field log + LOG button, `?debug=1` panel, `?test=1` checklist and `?desktop=1` sim only open
+on a **developer address** — `localhost` / `127.0.0.1`, a LAN IP (`192.168.*`, `10.*`, `172.16–31.*`),
+`*.local`, or the `npm run phone` tunnel (`*.trycloudflare.com`). On klevrlab.github.io their URL
+flags do nothing, and the location pill drops the GPS ±accuracy. `sharks-way-log.js` (first script
+on every page) sets `window.SharksWayDevHost`; every tool checks it. Tuning params
+(`&jumpApex`, `&scanMinCentred`, `&visionThreshold`, `&scale=responsive`, `&demoLocations=1`) still
+work everywhere — they change behaviour, they don't show debug UI. Test on a phone with
+`npm run phone` / `npm run phone:test`.
 
 ## Desktop Testing (no phone)
 
@@ -354,12 +365,12 @@ scale instead: that's a page opened with the phone held low, not a sunken floor.
 drop**: use the tap point's y or `MathUtils.floorY()`. The log's stats line carries
 `cam= floor= k=`, and each re-base is a `[ground]` line.
 
-**Real-world scale is opt-in (`?scale=absolute`, Oct 2).** Responsive scale drifts: the Oct 1 log
+**Real-world scale is the default (Oct 2, final production build); `?scale=responsive` falls back
+to the guessed scale above.** Responsive scale drifts: the Oct 1 log
 had the camera climb 1.6 → 5.3 units in two minutes (36 on Sept 30), so dropped models sank and
 "slowly got smaller" as you walked around them. The engine binary supports
 `xrweb="scale: absolute"` (metric scale from camera + motion sensors; `MathUtils.isMetric()` then
-pins k = 1). Not the default because it shipped without an on-site check — once a walk-around
-passes, put `xrweb="scale: absolute"` on `#xrscene`. While it calibrates, 8th Wall reports
+pins k = 1). `xrweb="scale: absolute"` is on `#xrscene`. While it calibrates, 8th Wall reports
 LIMITED/INITIALIZING and the page asks the visitor to move the phone side to side.
 Floor re-bases wait 6 s after the page returns from the background or the camera restarts.
 
@@ -371,7 +382,9 @@ apart on Sept 30). `SharkEmbeddingDetector.centredBest` subtracts the average be
 frame only votes if that "distinct" score is ≥ `visionMinCentred` (0.15, `&scanMinCentred=`, 0 = off).
 Leave-one-photo-out on the enrolled set: every real photo scores ≥ 0.26; an average-sidewalk frame
 ~0.14. Field log stats show `distinct=`; rejected frames log "looks like sidewalk, ignored".
-A scan hit plays `scan-feedback.js` ("Shark #N found!" burst + vibrate where supported).
+`scan-feedback.js` ("Shark #N found!" burst + vibrate) is **off** since Oct 2 — matching is still
+too loose and the burst made every false match obvious. The swim-through still plays.
+`&scanBurst=1` tries it; set `ENABLED` in scan-feedback.js to ship it again.
 
 **Selfie:** one MediaPipe `Pose` per page (`state.selfie.poseInstance`) — a second instance aborts
 (Oct 1: the Athena selfie after Sharkie never found a pose).

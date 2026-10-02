@@ -60,9 +60,10 @@ AFRAME.registerComponent('debug-placement', {
 
   init: function () {
     const params = new URLSearchParams(window.location.search);
-    this.active = this.data.enabled ||
+    // Developer addresses only — never on the public site (sharks-way-log.js).
+    this.active = window.SharksWayDevHost === true && (this.data.enabled ||
       params.get('debug') === '1' ||
-      params.get('debugPlacement') === '1';
+      params.get('debugPlacement') === '1');
     if (!this.active) return;
 
     this.selected = null;

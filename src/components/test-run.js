@@ -18,7 +18,8 @@
  * Share the log at the end (or any time from the card's ⋯ menu).
  */
 const params = new URLSearchParams(window.location.search);
-const ENABLED = params.get('test') === '1';
+// Developer addresses only — never on the public site (sharks-way-log.js).
+const ENABLED = window.SharksWayDevHost === true && params.get('test') === '1';
 const PROGRESS_KEY = 'sharksway.testrun.step';
 
 const log = (category, message) => {

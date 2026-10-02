@@ -34,7 +34,9 @@ const PINS = {
 };
 
 const params = new URLSearchParams(window.location.search);
-const enabled = params.get('desktop') === '1' || params.get('sim') === '1';
+// Developer addresses only — never on the public site (sharks-way-log.js).
+const enabled = window.SharksWayDevHost === true &&
+  (params.get('desktop') === '1' || params.get('sim') === '1');
 
 if (enabled) {
   installFakeGps();

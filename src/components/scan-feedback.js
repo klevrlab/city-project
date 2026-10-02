@@ -12,7 +12,13 @@
  *
  * Only for camera recognitions (trigger "vision") in Wayfinding — the test
  * run's Summon and console spawns are not "found".
+ *
+ * OFF for now (Oct 2, final production build): scanning still matches too
+ * loosely, and a burst on every false match drew attention to it. The
+ * swim-through still plays. `&scanBurst=1` turns it back on to try; to ship it
+ * again, set ENABLED to true.
  */
+const ENABLED = new URLSearchParams(window.location.search).get('scanBurst') === '1';
 const SHOW_MS = 1900;
 
 let el = null;
@@ -57,7 +63,9 @@ function attach() {
   });
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
-else attach();
+if (ENABLED) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+}
 
 window.SharksWayScanBurst = { show };

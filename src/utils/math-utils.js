@@ -84,15 +84,14 @@
 
   /**
    * True when 8th Wall runs in real-world ("absolute") scale — xrweb="scale:
-   * absolute" on #xrscene, opt-in with ?scale=absolute (Oct 2: shipped
-   * untested on a phone, so not the default yet). The engine then estimates
+   * absolute" on #xrscene, the default since Oct 2 (?scale=responsive turns it
+   * off). The engine then estimates
    * metric scale from the camera *and* the motion sensors and keeps it, so a
    * unit is a metre and none of the guessing below is needed. Responsive scale
    * fixed the scale from the first frame only, and it drifted as you walked:
    * the camera climbed 1.6 → 5.3 units in two minutes on Oct 1 (36 on the
    * Sept 30 evening run), so dropped models sank away and "slowly got smaller".
-   * Once it has passed a walk-around on site, make it the default by putting
-   * `xrweb="scale: absolute"` on #xrscene in shark-ar-8thwall.html.
+   * The guessing below stays for ?scale=responsive.
    */
   function isMetric() {
     const scene = global.document && global.document.getElementById('xrscene');

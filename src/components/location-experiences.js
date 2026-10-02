@@ -52,10 +52,11 @@ const TOWER_HEIGHT_M = 8;      // the June 10 redline's 8 m / 26 ft replica
  * portrait frame at the 8 m minimum drop.
  */
 const JUMP_SHARK_MAX_DIM_M = 2.5;
-const JUMP_APEX_HEIGHT_M = 1.6;
-// Sept 30 evening, "can we make it higher" was marked with the camera reading ~4 m above
-// a floor that had sunk (MathUtils.trackGround now re-bases it), i.e. looked
-// down on from above. Left at 1.6; `&jumpApex=2.2` tries a height on site.
+// Oct 2, final production build: 3× — 1.6 → 4.8 m ("3x the height of the
+// river jump"). Desktop sim: nose tops out 4.8 m up, ~17° above eye level
+// at the drop's usual ~10 m (~25° at the 8 m minimum) — inside a portrait
+// camera's view with the phone level. `&jumpApex=` still tries other heights.
+const JUMP_APEX_HEIGHT_M = 4.8;
 const JUMP_RUN_M = 10;          // swim in, breach, swim off: ~10 m across the view
 
 /**
@@ -213,7 +214,7 @@ AFRAME.registerComponent('location-experiences', {
     const params = new URLSearchParams(window.location.search);
     // ?test=1 is the at-home test run (test-run.js): every drop, no GPS needed.
     this.unlockAll = params.get('demoLocations') === '1' || params.get('demo') === 'locations' ||
-      params.get('test') === '1';
+      (params.get('test') === '1' && window.SharksWayDevHost === true);
     const waterY = parseFloat(params.get('waterY'));
     this.riverWaterY = isFinite(waterY) ? waterY : RIVER_WATER_Y_M;
     const apex = parseFloat(params.get('jumpApex'));
@@ -368,7 +369,9 @@ AFRAME.registerComponent('location-experiences', {
     // Start downloading what's on offer now, so the tap doesn't wait on it.
     if (changed) available.forEach((id) => prefetchModels(DROP_MODELS[id]));
 
-    const acc = typeof this.accuracy === 'number' ? ` ±${Math.round(this.accuracy)}m` : '';
+    // GPS accuracy is for the team; visitors just see where they are.
+    const acc = window.SharksWayDevHost === true && typeof this.accuracy === 'number'
+      ? ` ±${Math.round(this.accuracy)}m` : '';
     if (this.userLat == null) {
       this.setStatus(this.unlockAll ? 'Demo: all drops unlocked' : 'Location: acquiring GPS…');
     } else if (near) {

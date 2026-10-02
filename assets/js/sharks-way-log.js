@@ -483,6 +483,9 @@
   // 8th Wall, camera and app events (A-Frame events bubble up to window).
   var EVENTS = {
     xrloaded: 'xr', realityready: 'xr', realityerror: 'error', camerastatuschange: 'xr',
+    // Tracking status (absolute scale calibrates first: LIMITED / INITIALIZING).
+    // The engine names it reality.trackingstatus; the A-Frame spelling varies.
+    realitytrackingstatus: 'xr', trackingstatus: 'xr',
     sharkFound: 'scan', sharksWayModeChanged: 'mode', sharksWayDropsChanged: 'loc'
   };
   Object.keys(EVENTS).forEach(function (name) {
@@ -609,6 +612,7 @@
         var v = window.SharkVision.last();
         s.push('scan="' + window.SharkVision.status() + '"' +
           (v && v.name ? ' best=' + v.name + ' ' + v.score + ' conf=' + v.confidence +
+            (v.centred != null ? ' distinct=' + v.centred : '') +
             ' (need ' + window.SharkVision.threshold() + ')' : ''));
       }
       if (window.SharksWayDrops) s.push('drops=' + window.SharksWayDrops.available().join(','));

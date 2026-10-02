@@ -53,6 +53,7 @@
     <script type="module" src="./src/systems/event-system.js"></script>
     <script type="module" src="./src/components/shark-detector.js"></script>
     <script type="module" src="./src/components/shark-animator.js"></script>
+    <script type="module" src="./src/components/scan-feedback.js"></script>
     <script type="module" src="./src/components/tour-ui.js"></script>
     <script type="module" src="./src/components/soccer-game.js"></script>
     <script type="module" src="./src/components/net-shader.js"></script>
@@ -141,6 +142,12 @@
     </a-scene>
 
     <script>
+        // Real-world scale (see MathUtils.isMetric) is opt-in until it has had
+        // an on-site check: ?scale=absolute. Must run here, before 8th Wall
+        // starts — the scale can't change after XR8.run().
+        if (new URLSearchParams(location.search).get('scale') === 'absolute') {
+            document.getElementById('xrscene').setAttribute('xrweb', 'scale: absolute');
+        }
         // Start logic - 8th Wall components on a-scene will handle run()
         window.addEventListener('xrloaded', () => {
             console.log('8th Wall Engine Loaded');

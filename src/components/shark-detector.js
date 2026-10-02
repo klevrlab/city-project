@@ -37,6 +37,12 @@ AFRAME.registerComponent('shark-detector', {
     // buys real headroom without reaching down to arbitrary street content.
     visionThreshold: { type: 'number', default: 0.45 },
     visionConfidence: { type: 'number', default: 0.4 },
+    // Second gate: the frame must also look like a *particular* painting once
+    // the average sidewalk look is subtracted (SharkEmbeddingDetector
+    // .centredBest). Plain pavement scores ~0 there; another photo of the same
+    // shark ~0.29 (median, enrolled set). 0 turns the gate off.
+    // On site: &scanMinCentred=0.1 (looser) / 0.2 (stricter).
+    visionMinCentred: { type: 'number', default: 0.15 },
     // Pause after each swim-through before scanning again, so a visitor still
     // pointing at the same painting gets the next shark after a beat, not at once.
     visionCooldownMs: { type: 'number', default: 5000 },
@@ -138,6 +144,8 @@ AFRAME.registerComponent('shark-detector', {
     // gate. Try `&visionThreshold=0.4`, read the scores in the debug panel.
     const thr = parseFloat(params.get('visionThreshold'));
     if (isFinite(thr) && thr > 0 && thr < 1) this.data.visionThreshold = thr;
+    const minC = parseFloat(params.get('scanMinCentred'));
+    if (isFinite(minC) && minC >= 0 && minC < 1) this.data.visionMinCentred = minC;
     if (!window.SharkEmbeddingDetector || !window.tf || !window.mobilenet) {
       this.vision.status = 'unavailable (tf/mobilenet not loaded)';
       console.warn('[shark-detector] vision libraries missing — skipping');
@@ -174,9 +182,11 @@ AFRAME.registerComponent('shark-detector', {
         name: this.vision.lastName,
         score: +this.vision.lastScore.toFixed(3),
         confidence: +this.vision.lastConfidence.toFixed(2),
+        centred: +(this.vision.lastCentred || 0).toFixed(3),
         matches: this.vision.matches
       }),
-      threshold: () => this.data.visionThreshold
+      threshold: () => this.data.visionThreshold,
+      minCentred: () => this.data.visionMinCentred
     };
   },
 
@@ -228,7 +238,14 @@ AFRAME.registerComponent('shark-detector', {
     SED.getFrameEmbedding(this.vision.model, this.vision.video, this.vision.canvas)
       .then((embedding) => {
         if (!embedding) return;
-        const raw = SED.bestMatch(this.vision.embeddings, embedding);
+        let raw = SED.bestMatch(this.vision.embeddings, embedding);
+        // A frame that clears the raw bar but is just sidewalk doesn't vote.
+        const cen = SED.centredBest ? SED.centredBest(this.vision.embeddings, embedding) : null;
+        this.vision.lastCentred = cen ? cen.score : 0;
+        if (cen && this.data.visionMinCentred > 0 && cen.score < this.data.visionMinCentred) {
+          if (raw.score >= this.data.visionThreshold) this.noteRejected(raw, cen);
+          raw = { name: null, score: raw.score };
+        }
         const smoothed = SED.rollingScore(this.vision.embeddings, raw);
         this.vision.lastName = smoothed.name;
         this.vision.lastScore = smoothed.score || 0;
@@ -244,12 +261,14 @@ AFRAME.registerComponent('shark-detector', {
           this.vision.matches++;
           this.vision.status = 'match: ' + smoothed.name;
           console.log('[shark-detector] painted shark recognised:', smoothed.name,
-            smoothed.score.toFixed(3));
+            smoothed.score.toFixed(3), 'distinct', this.vision.lastCentred.toFixed(3),
+            '(' + (cen && cen.name) + ')');
           this.onSharkFound({
             trigger: 'vision',
             name: smoothed.name,
             score: smoothed.score,
-            confidence: smoothed.confidence
+            confidence: smoothed.confidence,
+            distinct: +this.vision.lastCentred.toFixed(3)
           });
         } else if (this.vision.status.indexOf('match') !== 0) {
           this.vision.status = 'watching';
@@ -257,6 +276,17 @@ AFRAME.registerComponent('shark-detector', {
       })
       .catch((err) => console.warn('[shark-detector] vision frame failed', err))
       .then(() => { this.vision.busy = false; });
+  },
+
+  /** Log (throttled) frames the sidewalk gate turned away — for tuning on site. */
+  noteRejected: function (raw, cen) {
+    const now = performance.now();
+    if (now - (this._lastRejectLog || 0) < 3000) return;
+    this._lastRejectLog = now;
+    if (window.SharksWayLog) {
+      window.SharksWayLog.add('scan', `looks like sidewalk, ignored: ${raw.name} ${raw.score.toFixed(3)}` +
+        ` but distinct ${cen.score.toFixed(3)} < ${this.data.visionMinCentred}`);
+    }
   },
 
   startGpsWatch: function () {

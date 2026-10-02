@@ -82,8 +82,34 @@
   const camY = (cameraEl) => cameraEl.object3D.getWorldPosition(new THREE.Vector3()).y;
   const ground = { k: null, kFrom: '', kAt: 0, retaken: false, floorY: 0, rebases: 0, timer: null };
 
+  /**
+   * True when 8th Wall runs in real-world ("absolute") scale — xrweb="scale:
+   * absolute" on #xrscene, opt-in with ?scale=absolute (Oct 2: shipped
+   * untested on a phone, so not the default yet). The engine then estimates
+   * metric scale from the camera *and* the motion sensors and keeps it, so a
+   * unit is a metre and none of the guessing below is needed. Responsive scale
+   * fixed the scale from the first frame only, and it drifted as you walked:
+   * the camera climbed 1.6 → 5.3 units in two minutes on Oct 1 (36 on the
+   * Sept 30 evening run), so dropped models sank away and "slowly got smaller".
+   * Once it has passed a walk-around on site, make it the default by putting
+   * `xrweb="scale: absolute"` on #xrscene in shark-ar-8thwall.html.
+   */
+  function isMetric() {
+    const scene = global.document && global.document.getElementById('xrscene');
+    const xr = scene && scene.getAttribute('xrweb');
+    if (!xr) return false;
+    return typeof xr === 'string' ? /scale\s*:\s*absolute/.test(xr) : xr.scale === 'absolute';
+  }
+
   function unitsPerMetre(cameraEl) {
     if (ground.k) return ground.k;
+    if (isMetric()) {
+      ground.k = 1;
+      ground.kAt = Date.now();
+      ground.kFrom = 'absolute scale — units are metres';
+      note(`scale 1.00 units/m (${ground.kFrom})`);
+      return 1;
+    }
     if (!cameraEl || !cameraEl.object3D) return 1;
     const y = camY(cameraEl) - ground.floorY;
     if (!(y > 0)) return 1;
@@ -148,8 +174,23 @@
     const first = [];
     const recent = [];
     let highSince = 0;
+    // Coming back from the background (or a camera restart), 8th Wall spends a
+    // few seconds re-finding itself and the height jumps around: Oct 1 re-based
+    // the floor three times in six seconds right after the page came back
+    // (0 → 1.19 → 3.70 → 1.58). Let it settle before judging the floor.
+    let quietUntil = 0;
+    const settle = () => { quietUntil = Date.now() + 6000; recent.length = 0; highSince = 0; };
+    if (global.document) {
+      global.document.addEventListener('visibilitychange', () => {
+        if (global.document.visibilityState === 'visible') settle();
+      });
+    }
+    global.addEventListener('camerastatuschange', (e) => {
+      if (e && e.detail && e.detail.status === 'hasVideo') settle();
+    });
     ground.timer = setInterval(() => {
       if (!cameraEl.object3D) return;
+      if (Date.now() < quietUntil) return;
       const y = camY(cameraEl);
       // Until 8th Wall moves the camera, its y is the scene's 1.6 placeholder.
       if (untracked === null) { untracked = y; return; }
@@ -157,6 +198,7 @@
         if (Math.abs(y - untracked) < 1e-4) return;
         tracking = true;
       }
+      if (!ground.k && isMetric()) unitsPerMetre(cameraEl);
       if (!ground.k) {
         first.push(y);
         if (first.length >= 20) {
@@ -174,7 +216,7 @@
       const yNow = median(recent);
       const h = (yNow - ground.floorY) / ground.k;
       const steady = (Math.max(...recent) - Math.min(...recent)) / ground.k < STEADY_M;
-      if (h > SCALE_LOW_M) {
+      if (h > SCALE_LOW_M && !isMetric()) {
         if (!highSince) highSince = Date.now();
         // Early on, a raise that comes to rest means the scale was taken low.
         // Give it SETTLE_MS to stop moving; a creep never does, and falls
@@ -224,6 +266,7 @@
     unitsPerMetre: unitsPerMetre,
     trackGround: trackGround,
     floorY: floorY,
+    isMetric: isMetric,
     groundState: groundState,
     PHONE_HEIGHT_M: PHONE_HEIGHT_M
   };

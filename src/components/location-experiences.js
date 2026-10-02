@@ -229,6 +229,7 @@ AFRAME.registerComponent('location-experiences', {
     if (window.MathUtils && window.MathUtils.trackGround) {
       window.MathUtils.trackGround(document.getElementById('camera'), document.getElementById('ground'));
     }
+    this.watchCalibration();
     this.ensureStatusUi();
     this.ensureDropBar();
 
@@ -432,6 +433,32 @@ AFRAME.registerComponent('location-experiences', {
     this.renderDropBar();
     this.flashHint(DROP_HINTS[id]);
     return true;
+  },
+
+  /**
+   * Real-world scale (xrweb="scale: absolute") measures scale from the phone's
+   * motion before it's ready — 8th Wall reports tracking LIMITED, reason
+   * INITIALIZING, until then. Without a nudge people stand still and wait.
+   * Only reacts to a status it actually receives, so if this build never
+   * sends one nothing is shown.
+   */
+  watchCalibration: function () {
+    let shown = false;
+    const onStatus = (e) => {
+      const d = (e && e.detail) || {};
+      const calibrating = d.status === 'LIMITED' && d.reason === 'INITIALIZING';
+      if (calibrating && !shown) {
+        shown = true;
+        this.flashHint('Move your phone slowly side to side to get started', 20000);
+      } else if (d.status === 'NORMAL' && shown) {
+        shown = false;
+        const el = document.getElementById('tap-instruction');
+        if (el) el.classList.remove('visible');
+        fieldLog('xr', 'tracking ready (real-world scale)');
+      }
+    };
+    window.addEventListener('realitytrackingstatus', onStatus);
+    window.addEventListener('trackingstatus', onStatus);
   },
 
   flashHint: function (text, ms = 3500) {

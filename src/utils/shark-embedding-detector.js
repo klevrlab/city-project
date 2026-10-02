@@ -53,6 +53,53 @@
     return best;
   }
 
+  /**
+   * "Does this look like a particular painting, or just like sidewalk?"
+   *
+   * The enrolled photos are mostly pavement with a painting in it, so every one
+   * of them is ~0.83 similar to their own average, and photos of *different*
+   * sharks score 0.55–0.79 against each other — about what a frame of plain
+   * sidewalk scores, which is why bare pavement kept clearing the 0.45 bar
+   * (Sept 30: the same "shark 12 shadow" photo matched at Little Italy, the
+   * river and SAP, 300 m apart). Subtracting that average before comparing
+   * leaves what's distinctive about each painting: on the enrolled set,
+   * different sharks drop to a median of −0.06 while another photo of the same
+   * shark keeps 0.29, and a frame that's just sidewalk sits near the average,
+   * so it scores ~0 against everything.
+   */
+  function buildCentred(state) {
+    var n = state.enrolled.length;
+    if (!n) return;
+    var dim = state.enrolled[0].embedding.length;
+    var mean = new Float32Array(dim);
+    for (var i = 0; i < n; i++) {
+      var e = state.enrolled[i].embedding;
+      for (var d = 0; d < dim; d++) mean[d] += e[d] / n;
+    }
+    state.mean = mean;
+    state.centred = state.enrolled.map(function (item) {
+      return { name: item.name, embedding: centre(item.embedding, mean) };
+    });
+  }
+
+  function centre(vec, mean) {
+    var out = new Float32Array(vec.length);
+    for (var i = 0; i < vec.length; i++) out[i] = vec[i] - mean[i];
+    return l2Normalize(out);
+  }
+
+  /** Best match after removing the shared sidewalk look (see buildCentred). */
+  function centredBest(state, embedding) {
+    if (!state.mean || !state.centred) return null;
+    var q = centre(embedding, state.mean);
+    var best = { name: null, score: -1 };
+    for (var i = 0; i < state.centred.length; i++) {
+      var score = cosineSimilarity(q, state.centred[i].embedding);
+      if (score > best.score) best = { name: state.centred[i].name, score: score };
+    }
+    return best;
+  }
+
   function rollingScore(state, currentMatch) {
     state.recentScores.push({ name: currentMatch.name, score: currentMatch.score });
     if (state.recentScores.length > state.ROLLING_N) state.recentScores.shift();
@@ -92,9 +139,10 @@
 
   function applyEmbeddings(state, data) {
     state.enrolled = data.map(function (item) {
-      return { name: item.name, embedding: new Float32Array(item.embedding) };
+      return { name: item.name, embedding: l2Normalize(new Float32Array(item.embedding)) };
     });
     buildSharkGroups(state);
+    buildCentred(state);
     if (global.console) console.log(Object.keys(state.sharkGroups).length + ' sharks loaded');
   }
 
@@ -278,6 +326,7 @@
     cosineSimilarity: cosineSimilarity,
     friendlyName: friendlyName,
     bestMatch: bestMatch,
+    centredBest: centredBest,
     rollingScore: rollingScore,
     buildSharkGroups: buildSharkGroups,
     applyEmbeddings: applyEmbeddings,

@@ -92,7 +92,8 @@ const state = {
     heightFrac: 0.42,
     xNudge: 50,
     scriptsReady: false,
-    scriptsLoading: null
+    scriptsLoading: null,
+    poseInstance: null
   }
 };
 
@@ -619,17 +620,27 @@ async function startSelfieMode() {
   state.selfie.startedAt = performance.now();
   state.selfie.firstPoseLogged = false;
 
-  const pose = new Pose({
-    locateFile: (f) => `${MEDIAPIPE_POSE_URL}/${f}`
-  });
-  pose.setOptions({
-    modelComplexity: 0,
-    smoothLandmarks: true,
-    enableSegmentation: false,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-  });
-  pose.onResults(onSelfiePoseResults);
+  // One Pose for the life of the page. MediaPipe's WASM build doesn't survive a
+  // second instance: on Oct 1 the second selfie (Athena, after Sharkie) logged
+  // ~90 "Aborted(Module.arguments…)" / "Assertion failed" and never found a
+  // pose, so the mascot never showed. Reuse it and just clear its tracking.
+  let pose = state.selfie.poseInstance;
+  if (!pose) {
+    pose = new Pose({
+      locateFile: (f) => `${MEDIAPIPE_POSE_URL}/${f}`
+    });
+    pose.setOptions({
+      modelComplexity: 0,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    pose.onResults(onSelfiePoseResults);
+    state.selfie.poseInstance = pose;
+  } else {
+    try { if (typeof pose.reset === 'function') pose.reset(); } catch (e) { /* fresh enough */ }
+  }
   state.selfie.pose = pose;
 
   const camera = new Camera(video, {
@@ -666,7 +677,7 @@ function stopSelfieMode() {
     }
   } catch (e) { fieldLog('warn', `selfie camera stop threw: ${e && e.message}`); }
   state.selfie.camera = null;
-  state.selfie.pose = null;
+  state.selfie.pose = null;   // poseInstance is kept for the next selfie
   state.selfie.lastRect = null;
 
   if (state.selfie.stream) {

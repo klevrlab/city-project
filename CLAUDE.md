@@ -354,6 +354,28 @@ scale instead: that's a page opened with the phone held low, not a sunken floor.
 drop**: use the tap point's y or `MathUtils.floorY()`. The log's stats line carries
 `cam= floor= k=`, and each re-base is a `[ground]` line.
 
+**Real-world scale is opt-in (`?scale=absolute`, Oct 2).** Responsive scale drifts: the Oct 1 log
+had the camera climb 1.6 → 5.3 units in two minutes (36 on Sept 30), so dropped models sank and
+"slowly got smaller" as you walked around them. The engine binary supports
+`xrweb="scale: absolute"` (metric scale from camera + motion sensors; `MathUtils.isMetric()` then
+pins k = 1). Not the default because it shipped without an on-site check — once a walk-around
+passes, put `xrweb="scale: absolute"` on `#xrscene`. While it calibrates, 8th Wall reports
+LIMITED/INITIALIZING and the page asks the visitor to move the phone side to side.
+Floor re-bases wait 6 s after the page returns from the background or the camera restarts.
+
+## Scanning: the "distinct" gate
+
+Every enrolled photo is mostly sidewalk: they're ~0.83 similar to their own average and 0.55–0.79
+to *other* sharks, so plain pavement cleared the 0.45 raw bar (the same shadow photo matched 300 m
+apart on Sept 30). `SharkEmbeddingDetector.centredBest` subtracts the average before comparing; a
+frame only votes if that "distinct" score is ≥ `visionMinCentred` (0.15, `&scanMinCentred=`, 0 = off).
+Leave-one-photo-out on the enrolled set: every real photo scores ≥ 0.26; an average-sidewalk frame
+~0.14. Field log stats show `distinct=`; rejected frames log "looks like sidewalk, ignored".
+A scan hit plays `scan-feedback.js` ("Shark #N found!" burst + vibrate where supported).
+
+**Selfie:** one MediaPipe `Pose` per page (`state.selfie.poseInstance`) — a second instance aborts
+(Oct 1: the Athena selfie after Sharkie never found a pose).
+
 ## No native dialogs on the AR pages
 
 Never `window.prompt` / `confirm` / `alert` on the 8th Wall page: on iPhone a native dialog stalls

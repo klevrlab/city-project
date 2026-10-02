@@ -63,6 +63,94 @@ body {
             opacity: 1;
         }
 
+        /* "Shark found!" burst (src/components/scan-feedback.js). Above the
+           camera and hints, under the menu (2400+); never takes touches. */
+        #scan-burst {
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            pointer-events: none;
+            display: none;
+        }
+        #scan-burst.play { display: block; }
+        #scan-burst .sb-frame {
+            position: absolute;
+            left: 50%;
+            top: 46%;
+            width: min(62vw, 260px);
+            aspect-ratio: 1;
+            transform: translate(-50%, -50%);
+        }
+        #scan-burst .sb-frame i {
+            position: absolute;
+            width: 22%;
+            height: 22%;
+            border: 0 solid #00e0c6;
+            filter: drop-shadow(0 0 6px rgba(0, 224, 198, 0.8));
+        }
+        #scan-burst .sb-frame i:nth-child(1) { left: 0; top: 0; border-width: 5px 0 0 5px; border-top-left-radius: 14px; }
+        #scan-burst .sb-frame i:nth-child(2) { right: 0; top: 0; border-width: 5px 5px 0 0; border-top-right-radius: 14px; }
+        #scan-burst .sb-frame i:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 5px 5px; border-bottom-left-radius: 14px; }
+        #scan-burst .sb-frame i:nth-child(4) { right: 0; bottom: 0; border-width: 0 5px 5px 0; border-bottom-right-radius: 14px; }
+        #scan-burst.play .sb-frame { animation: sb-lock 1.9s ease-out forwards; }
+        #scan-burst .sb-ring {
+            position: absolute;
+            left: 50%;
+            top: 46%;
+            width: 40vmin;
+            height: 40vmin;
+            margin: -20vmin 0 0 -20vmin;
+            border-radius: 50%;
+            border: 4px solid rgba(0, 224, 198, 0.9);
+            opacity: 0;
+        }
+        #scan-burst.play .sb-ring { animation: sb-ring 0.9s 0.25s ease-out forwards; }
+        #scan-burst .sb-badge {
+            position: absolute;
+            left: 50%;
+            top: 46%;
+            transform: translate(-50%, -50%) scale(0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 12px 22px;
+            border-radius: 22px;
+            background: rgba(0, 109, 117, 0.92);
+            border: 1px solid rgba(0, 224, 198, 0.8);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+            opacity: 0;
+        }
+        #scan-burst.play .sb-badge { animation: sb-badge 1.9s 0.2s ease-out forwards; }
+        #scan-burst .sb-icon { font-size: 30px; line-height: 1; }
+        #scan-burst .sb-text { font-size: 19px; font-weight: 800; }
+        #scan-burst .sb-sub { font-size: 13px; font-weight: 600; opacity: 0.85; }
+        @keyframes sb-lock {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+            18% { opacity: 1; transform: translate(-50%, -50%) scale(0.95); }
+            26% { transform: translate(-50%, -50%) scale(1); }
+            75% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes sb-ring {
+            0% { opacity: 0.9; transform: scale(0.5); }
+            100% { opacity: 0; transform: scale(2.2); }
+        }
+        @keyframes sb-badge {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+            14% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+            22% { transform: translate(-50%, -50%) scale(1); }
+            80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -60%) scale(0.96); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #scan-burst.play .sb-frame, #scan-burst.play .sb-ring { animation: none; opacity: 0; }
+            #scan-burst.play .sb-badge { animation: none; opacity: 1; transform: translate(-50%, -50%); }
+        }
+
         /* Top-left under the topbar: the bottom of the screen belongs to the
            drop / photo chip bars. */
         #location-status {
